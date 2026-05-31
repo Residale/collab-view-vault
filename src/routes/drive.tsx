@@ -55,12 +55,27 @@ function DrivePage() {
   const [selectedFile, setSelectedFile] = useState<FileRow | null>(null);
   const [shareTarget, setShareTarget] = useState<ShareTargetInput | null>(null);
   const [folderDialog, setFolderDialog] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<{ kind: "file" | "folder"; id: string; name: string } | null>(null);
+  const [moveTarget, setMoveTarget] = useState<{ kind: "file" | "folder"; id: string; name: string; currentParent: string | null } | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [dark, setDark] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const s = localStorage.getItem("drive-theme");
+    if (s) return s === "dark";
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
 
   useEffect(() => { setPath([null]); setSelectedFile(null); }, [section]);
+
+  // Theme
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("drive-theme", dark ? "dark" : "light");
+  }, [dark]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["drive"] });
 
@@ -73,12 +88,16 @@ function DrivePage() {
     const arr = Array.from(files);
     if (!arr.length) return;
     const currentFolder = path[path.length - 1];
+    const id = toast.loading(`Uploading ${arr.length} file${arr.length > 1 ? "s" : ""}…`);
+    let done = 0;
     for (const f of arr) {
       try {
         await uploadFile(user.id, currentFolder, f);
-        toast.success(`Uploaded ${f.name}`);
-      } catch (e: any) { toast.error(e.message); }
+        done++;
+        toast.loading(`Uploading… ${done}/${arr.length}`, { id });
+      } catch (e: any) { toast.error(`${f.name}: ${e.message}`); }
     }
+    toast.success(`Uploaded ${done}/${arr.length}`, { id });
     invalidate();
   };
 
@@ -86,6 +105,14 @@ function DrivePage() {
     try {
       const url = await getSignedUrl(f.storage_path);
       window.open(url, "_blank");
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const onCopyLink = async (f: FileRow) => {
+    try {
+      const url = await getSignedUrl(f.storage_path, 60 * 60 * 24 * 7); // 7 days
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied (valid 7 days)");
     } catch (e: any) { toast.error(e.message); }
   };
 
@@ -105,21 +132,28 @@ function DrivePage() {
     } catch (e: any) { toast.error(e.message); }
   };
 
-  const onRenameFile = async (f: FileRow) => {
-    const name = prompt("Rename file", f.name);
-    if (!name || name === f.name) return;
-    try { await renameFile(f.id, name); invalidate(); } catch (e: any) { toast.error(e.message); }
-  };
-
-  const onRenameFolder = async (f: FolderRow) => {
-    const name = prompt("Rename folder", f.name);
-    if (!name || name === f.name) return;
-    try { await renameFolder(f.id, name); invalidate(); } catch (e: any) { toast.error(e.message); }
-  };
-
   const onStar = async (f: FileRow) => {
     try { await toggleStar(f); invalidate(); } catch (e: any) { toast.error(e.message); }
   };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const inField = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault(); setPaletteOpen(true); return;
+      }
+      if (inField) return;
+      if (e.key === "Escape" && selectedFile) { setSelectedFile(null); return; }
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedFile) {
+        e.preventDefault(); onDeleteFile(selectedFile); return;
+      }
+      if (e.key === " " && selectedFile) { e.preventDefault(); onDownload(selectedFile); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedFile]);
 
   // Drag & drop
   const onDragEnter = (e: React.DragEvent) => {
