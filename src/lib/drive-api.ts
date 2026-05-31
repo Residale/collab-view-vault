@@ -149,6 +149,36 @@ export async function deleteFolder(id: string) {
   if (error) throw error;
 }
 
+export async function moveFile(id: string, folderId: string | null) {
+  const { error } = await supabase.from("files").update({ folder_id: folderId }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function moveFolder(id: string, parentId: string | null) {
+  if (id === parentId) throw new Error("Cannot move a folder into itself");
+  const { error } = await supabase.from("folders").update({ parent_id: parentId }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function listAllFolders(ownerId: string) {
+  const { data, error } = await supabase
+    .from("folders").select("*").eq("owner_id", ownerId).order("name");
+  if (error) throw error;
+  return (data ?? []) as FolderRow[];
+}
+
+export async function searchAll(ownerId: string, query: string) {
+  const q = `%${query}%`;
+  const [files, folders] = await Promise.all([
+    supabase.from("files").select("*").eq("owner_id", ownerId).ilike("name", q).limit(20),
+    supabase.from("folders").select("*").eq("owner_id", ownerId).ilike("name", q).limit(20),
+  ]);
+  return {
+    files: (files.data ?? []) as FileRow[],
+    folders: (folders.data ?? []) as FolderRow[],
+  };
+}
+
 export async function searchUsersByEmail(query: string) {
   const { data, error } = await supabase
     .from("profiles").select("id, email, display_name, avatar_url")
