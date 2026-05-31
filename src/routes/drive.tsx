@@ -5,12 +5,13 @@ import { toast } from "sonner";
 import {
   ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
-  Download, Pencil, Trash2,
+  Download, Pencil, Trash2, Move, Link2, Sun, Moon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   createFolder, deleteFile, deleteFolder, getSignedUrl, listFiles, listFolders, listRecent,
-  listSharedByMe, listSharedWithMe, listStarred, renameFile, renameFolder, toggleStar, uploadFile,
+  listSharedByMe, listSharedWithMe, listStarred, moveFile, moveFolder, renameFile, renameFolder,
+  toggleStar, uploadFile,
   type FileRow, type FolderRow, type Section, formatBytes,
 } from "@/lib/drive-api";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,9 @@ import { FileIcon } from "@/components/drive/FileIcon";
 import { PreviewPane } from "@/components/drive/PreviewPane";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
+import { RenameDialog } from "@/components/drive/RenameDialog";
+import { MoveDialog } from "@/components/drive/MoveDialog";
+import { CommandPalette } from "@/components/drive/CommandPalette";
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
 } from "@/components/ui/context-menu";
@@ -51,12 +55,27 @@ function DrivePage() {
   const [selectedFile, setSelectedFile] = useState<FileRow | null>(null);
   const [shareTarget, setShareTarget] = useState<ShareTargetInput | null>(null);
   const [folderDialog, setFolderDialog] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<{ kind: "file" | "folder"; id: string; name: string } | null>(null);
+  const [moveTarget, setMoveTarget] = useState<{ kind: "file" | "folder"; id: string; name: string; currentParent: string | null } | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [dark, setDark] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const s = localStorage.getItem("drive-theme");
+    if (s) return s === "dark";
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
 
   useEffect(() => { setPath([null]); setSelectedFile(null); }, [section]);
+
+  // Theme
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("drive-theme", dark ? "dark" : "light");
+  }, [dark]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["drive"] });
 
@@ -69,12 +88,16 @@ function DrivePage() {
     const arr = Array.from(files);
     if (!arr.length) return;
     const currentFolder = path[path.length - 1];
+    const id = toast.loading(`Uploading ${arr.length} file${arr.length > 1 ? "s" : ""}…`);
+    let done = 0;
     for (const f of arr) {
       try {
         await uploadFile(user.id, currentFolder, f);
-        toast.success(`Uploaded ${f.name}`);
-      } catch (e: any) { toast.error(e.message); }
+        done++;
+        toast.loading(`Uploading… ${done}/${arr.length}`, { id });
+      } catch (e: any) { toast.error(`${f.name}: ${e.message}`); }
     }
+    toast.success(`Uploaded ${done}/${arr.length}`, { id });
     invalidate();
   };
 
@@ -82,6 +105,14 @@ function DrivePage() {
     try {
       const url = await getSignedUrl(f.storage_path);
       window.open(url, "_blank");
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const onCopyLink = async (f: FileRow) => {
+    try {
+      const url = await getSignedUrl(f.storage_path, 60 * 60 * 24 * 7); // 7 days
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied (valid 7 days)");
     } catch (e: any) { toast.error(e.message); }
   };
 
@@ -101,21 +132,28 @@ function DrivePage() {
     } catch (e: any) { toast.error(e.message); }
   };
 
-  const onRenameFile = async (f: FileRow) => {
-    const name = prompt("Rename file", f.name);
-    if (!name || name === f.name) return;
-    try { await renameFile(f.id, name); invalidate(); } catch (e: any) { toast.error(e.message); }
-  };
-
-  const onRenameFolder = async (f: FolderRow) => {
-    const name = prompt("Rename folder", f.name);
-    if (!name || name === f.name) return;
-    try { await renameFolder(f.id, name); invalidate(); } catch (e: any) { toast.error(e.message); }
-  };
-
   const onStar = async (f: FileRow) => {
     try { await toggleStar(f); invalidate(); } catch (e: any) { toast.error(e.message); }
   };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const inField = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault(); setPaletteOpen(true); return;
+      }
+      if (inField) return;
+      if (e.key === "Escape" && selectedFile) { setSelectedFile(null); return; }
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedFile) {
+        e.preventDefault(); onDeleteFile(selectedFile); return;
+      }
+      if (e.key === " " && selectedFile) { e.preventDefault(); onDownload(selectedFile); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedFile]);
 
   // Drag & drop
   const onDragEnter = (e: React.DragEvent) => {
@@ -143,14 +181,17 @@ function DrivePage() {
 
   const folderActions = {
     onShare: (f: FolderRow) => setShareTarget({ type: "folder", id: f.id, name: f.name, ownerId: f.owner_id }),
-    onRename: onRenameFolder,
+    onRename: (f: FolderRow) => setRenameTarget({ kind: "folder", id: f.id, name: f.name }),
+    onMove: (f: FolderRow) => setMoveTarget({ kind: "folder", id: f.id, name: f.name, currentParent: f.parent_id }),
     onDelete: onDeleteFolder,
   };
   const fileActions = {
     onShare: (f: FileRow) => setShareTarget({ type: "file", id: f.id, name: f.name, ownerId: f.owner_id }),
-    onRename: onRenameFile,
+    onRename: (f: FileRow) => setRenameTarget({ kind: "file", id: f.id, name: f.name }),
+    onMove: (f: FileRow) => setMoveTarget({ kind: "file", id: f.id, name: f.name, currentParent: f.folder_id }),
     onDelete: onDeleteFile,
     onDownload,
+    onCopyLink,
     onStar,
   };
 
@@ -216,14 +257,28 @@ function DrivePage() {
         <header className="h-14 border-b border-hairline flex items-center justify-between px-6 bg-background gap-4">
           <Breadcrumb section={section} path={path} setPath={setPath} />
           <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="hidden md:flex items-center gap-2 h-8 px-2.5 text-xs text-muted-foreground bg-surface-2 rounded-md ring-1 ring-hairline hover:text-foreground transition-colors"
+            >
+              <Search className="size-3.5" /> Quick find
+              <kbd className="ml-2 text-[10px] font-mono bg-background px-1.5 py-0.5 rounded ring-1 ring-hairline">⌘K</kbd>
+            </button>
             <div className="relative">
               <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search} onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search files…"
-                className="w-56 pl-8 h-8 text-sm bg-surface-2 border-0"
+                placeholder="Filter…"
+                className="w-44 pl-8 h-8 text-sm bg-surface-2 border-0"
               />
             </div>
+            <button
+              onClick={() => setDark((v) => !v)}
+              className="h-8 w-8 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-surface-2"
+              title={dark ? "Light mode" : "Dark mode"}
+            >
+              {dark ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+            </button>
             <div className="flex items-center bg-surface-2 p-0.5 rounded-md ring-1 ring-hairline">
               <ViewToggle active={view === "columns"} onClick={() => setView("columns")} icon={<Columns3 className="size-3.5" />} />
               <ViewToggle active={view === "list"} onClick={() => setView("list")} icon={<ListIcon className="size-3.5" />} />
@@ -282,6 +337,57 @@ function DrivePage() {
           } catch (e: any) { toast.error(e.message); }
         }}
       />
+
+      <RenameDialog
+        open={!!renameTarget}
+        onOpenChange={(v) => !v && setRenameTarget(null)}
+        initial={renameTarget?.name ?? ""}
+        title={renameTarget?.kind === "folder" ? "Rename folder" : "Rename file"}
+        onSubmit={async (name) => {
+          if (!renameTarget) return;
+          try {
+            if (renameTarget.kind === "folder") await renameFolder(renameTarget.id, name);
+            else await renameFile(renameTarget.id, name);
+            invalidate(); toast.success("Renamed");
+          } catch (e: any) { toast.error(e.message); }
+        }}
+      />
+
+      {moveTarget && (
+        <MoveDialog
+          open={true}
+          onOpenChange={(v) => !v && setMoveTarget(null)}
+          ownerId={user.id}
+          itemName={moveTarget.name}
+          currentParentId={moveTarget.currentParent}
+          excludeFolderId={moveTarget.kind === "folder" ? moveTarget.id : undefined}
+          onMove={async (folderId) => {
+            try {
+              if (moveTarget.kind === "file") await moveFile(moveTarget.id, folderId);
+              else await moveFolder(moveTarget.id, folderId);
+              invalidate(); toast.success("Moved");
+            } catch (e: any) { toast.error(e.message); }
+          }}
+        />
+      )}
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        userId={user.id}
+        onOpenFile={(f) => { setSection("my"); setSelectedFile(f); }}
+        onOpenFolder={(f) => { setSection("my"); setPath([null, f.id]); }}
+        actions={[
+          { id: "upload", label: "Upload files", icon: <Upload className="size-4" />, onSelect: () => fileInputRef.current?.click() },
+          { id: "new-folder", label: "New folder", icon: <FolderPlus className="size-4" />, onSelect: () => setFolderDialog(true) },
+          { id: "my", label: "Go to My Drive", icon: <Folder className="size-4" />, onSelect: () => setSection("my") },
+          { id: "shared-with-me", label: "Go to Shared with me", icon: <Inbox className="size-4" />, onSelect: () => setSection("shared-with-me") },
+          { id: "shared-by-me", label: "Go to Shared by me", icon: <Send className="size-4" />, onSelect: () => setSection("shared-by-me") },
+          { id: "recent", label: "Go to Recent", icon: <Clock className="size-4" />, onSelect: () => setSection("recent") },
+          { id: "starred", label: "Go to Starred", icon: <Star className="size-4" />, onSelect: () => setSection("starred") },
+          { id: "theme", label: dark ? "Switch to light mode" : "Switch to dark mode", icon: dark ? <Sun className="size-4" /> : <Moon className="size-4" />, onSelect: () => setDark((v) => !v), keywords: "theme dark light" },
+        ]}
+      />
     </div>
   );
 }
@@ -289,13 +395,16 @@ function DrivePage() {
 type FolderActions = {
   onShare: (f: FolderRow) => void;
   onRename: (f: FolderRow) => void;
+  onMove: (f: FolderRow) => void;
   onDelete: (f: FolderRow) => void;
 };
 type FileActions = {
   onShare: (f: FileRow) => void;
   onRename: (f: FileRow) => void;
+  onMove: (f: FileRow) => void;
   onDelete: (f: FileRow) => void;
   onDownload: (f: FileRow) => void;
+  onCopyLink: (f: FileRow) => void;
   onStar: (f: FileRow) => void;
 };
 
@@ -306,6 +415,7 @@ function FolderContextMenu({ folder, actions, children }: { folder: FolderRow; a
       <ContextMenuContent className="w-48">
         <ContextMenuItem onSelect={() => actions.onShare(folder)}><Share2 className="size-3.5 mr-2" /> Share</ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.onRename(folder)}><Pencil className="size-3.5 mr-2" /> Rename</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onMove(folder)}><Move className="size-3.5 mr-2" /> Move…</ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.onDelete(folder)} className="text-destructive focus:text-destructive">
           <Trash2 className="size-3.5 mr-2" /> Delete
@@ -319,11 +429,14 @@ function FileContextMenu({ file, actions, children }: { file: FileRow; actions: 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
+      <ContextMenuContent className="w-52">
         <ContextMenuItem onSelect={() => actions.onDownload(file)}><Download className="size-3.5 mr-2" /> Download</ContextMenuItem>
-        <ContextMenuItem onSelect={() => actions.onShare(file)}><Share2 className="size-3.5 mr-2" /> Share</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onCopyLink(file)}><Link2 className="size-3.5 mr-2" /> Copy link</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onShare(file)}><Share2 className="size-3.5 mr-2" /> Share with people</ContextMenuItem>
+        <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.onStar(file)}><Star className={cn("size-3.5 mr-2", file.starred && "fill-current")} /> {file.starred ? "Unstar" : "Star"}</ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.onRename(file)}><Pencil className="size-3.5 mr-2" /> Rename</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onMove(file)}><Move className="size-3.5 mr-2" /> Move…</ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.onDelete(file)} className="text-destructive focus:text-destructive">
           <Trash2 className="size-3.5 mr-2" /> Delete
