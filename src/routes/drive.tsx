@@ -337,6 +337,57 @@ function DrivePage() {
           } catch (e: any) { toast.error(e.message); }
         }}
       />
+
+      <RenameDialog
+        open={!!renameTarget}
+        onOpenChange={(v) => !v && setRenameTarget(null)}
+        initial={renameTarget?.name ?? ""}
+        title={renameTarget?.kind === "folder" ? "Rename folder" : "Rename file"}
+        onSubmit={async (name) => {
+          if (!renameTarget) return;
+          try {
+            if (renameTarget.kind === "folder") await renameFolder(renameTarget.id, name);
+            else await renameFile(renameTarget.id, name);
+            invalidate(); toast.success("Renamed");
+          } catch (e: any) { toast.error(e.message); }
+        }}
+      />
+
+      {moveTarget && (
+        <MoveDialog
+          open={true}
+          onOpenChange={(v) => !v && setMoveTarget(null)}
+          ownerId={user.id}
+          itemName={moveTarget.name}
+          currentParentId={moveTarget.currentParent}
+          excludeFolderId={moveTarget.kind === "folder" ? moveTarget.id : undefined}
+          onMove={async (folderId) => {
+            try {
+              if (moveTarget.kind === "file") await moveFile(moveTarget.id, folderId);
+              else await moveFolder(moveTarget.id, folderId);
+              invalidate(); toast.success("Moved");
+            } catch (e: any) { toast.error(e.message); }
+          }}
+        />
+      )}
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        userId={user.id}
+        onOpenFile={(f) => { setSection("my"); setSelectedFile(f); }}
+        onOpenFolder={(f) => { setSection("my"); setPath([null, f.id]); }}
+        actions={[
+          { id: "upload", label: "Upload files", icon: <Upload className="size-4" />, onSelect: () => fileInputRef.current?.click() },
+          { id: "new-folder", label: "New folder", icon: <FolderPlus className="size-4" />, onSelect: () => setFolderDialog(true) },
+          { id: "my", label: "Go to My Drive", icon: <Folder className="size-4" />, onSelect: () => setSection("my") },
+          { id: "shared-with-me", label: "Go to Shared with me", icon: <Inbox className="size-4" />, onSelect: () => setSection("shared-with-me") },
+          { id: "shared-by-me", label: "Go to Shared by me", icon: <Send className="size-4" />, onSelect: () => setSection("shared-by-me") },
+          { id: "recent", label: "Go to Recent", icon: <Clock className="size-4" />, onSelect: () => setSection("recent") },
+          { id: "starred", label: "Go to Starred", icon: <Star className="size-4" />, onSelect: () => setSection("starred") },
+          { id: "theme", label: dark ? "Switch to light mode" : "Switch to dark mode", icon: dark ? <Sun className="size-4" /> : <Moon className="size-4" />, onSelect: () => setDark((v) => !v), keywords: "theme dark light" },
+        ]}
+      />
     </div>
   );
 }
