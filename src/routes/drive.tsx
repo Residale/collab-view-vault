@@ -181,14 +181,17 @@ function DrivePage() {
 
   const folderActions = {
     onShare: (f: FolderRow) => setShareTarget({ type: "folder", id: f.id, name: f.name, ownerId: f.owner_id }),
-    onRename: onRenameFolder,
+    onRename: (f: FolderRow) => setRenameTarget({ kind: "folder", id: f.id, name: f.name }),
+    onMove: (f: FolderRow) => setMoveTarget({ kind: "folder", id: f.id, name: f.name, currentParent: f.parent_id }),
     onDelete: onDeleteFolder,
   };
   const fileActions = {
     onShare: (f: FileRow) => setShareTarget({ type: "file", id: f.id, name: f.name, ownerId: f.owner_id }),
-    onRename: onRenameFile,
+    onRename: (f: FileRow) => setRenameTarget({ kind: "file", id: f.id, name: f.name }),
+    onMove: (f: FileRow) => setMoveTarget({ kind: "file", id: f.id, name: f.name, currentParent: f.folder_id }),
     onDelete: onDeleteFile,
     onDownload,
+    onCopyLink,
     onStar,
   };
 
