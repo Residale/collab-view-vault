@@ -257,14 +257,28 @@ function DrivePage() {
         <header className="h-14 border-b border-hairline flex items-center justify-between px-6 bg-background gap-4">
           <Breadcrumb section={section} path={path} setPath={setPath} />
           <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="hidden md:flex items-center gap-2 h-8 px-2.5 text-xs text-muted-foreground bg-surface-2 rounded-md ring-1 ring-hairline hover:text-foreground transition-colors"
+            >
+              <Search className="size-3.5" /> Quick find
+              <kbd className="ml-2 text-[10px] font-mono bg-background px-1.5 py-0.5 rounded ring-1 ring-hairline">⌘K</kbd>
+            </button>
             <div className="relative">
               <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search} onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search files…"
-                className="w-56 pl-8 h-8 text-sm bg-surface-2 border-0"
+                placeholder="Filter…"
+                className="w-44 pl-8 h-8 text-sm bg-surface-2 border-0"
               />
             </div>
+            <button
+              onClick={() => setDark((v) => !v)}
+              className="h-8 w-8 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-surface-2"
+              title={dark ? "Light mode" : "Dark mode"}
+            >
+              {dark ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+            </button>
             <div className="flex items-center bg-surface-2 p-0.5 rounded-md ring-1 ring-hairline">
               <ViewToggle active={view === "columns"} onClick={() => setView("columns")} icon={<Columns3 className="size-3.5" />} />
               <ViewToggle active={view === "list"} onClick={() => setView("list")} icon={<ListIcon className="size-3.5" />} />
