@@ -330,13 +330,16 @@ function DrivePage() {
 type FolderActions = {
   onShare: (f: FolderRow) => void;
   onRename: (f: FolderRow) => void;
+  onMove: (f: FolderRow) => void;
   onDelete: (f: FolderRow) => void;
 };
 type FileActions = {
   onShare: (f: FileRow) => void;
   onRename: (f: FileRow) => void;
+  onMove: (f: FileRow) => void;
   onDelete: (f: FileRow) => void;
   onDownload: (f: FileRow) => void;
+  onCopyLink: (f: FileRow) => void;
   onStar: (f: FileRow) => void;
 };
 
@@ -347,6 +350,7 @@ function FolderContextMenu({ folder, actions, children }: { folder: FolderRow; a
       <ContextMenuContent className="w-48">
         <ContextMenuItem onSelect={() => actions.onShare(folder)}><Share2 className="size-3.5 mr-2" /> Share</ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.onRename(folder)}><Pencil className="size-3.5 mr-2" /> Rename</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onMove(folder)}><Move className="size-3.5 mr-2" /> Move…</ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.onDelete(folder)} className="text-destructive focus:text-destructive">
           <Trash2 className="size-3.5 mr-2" /> Delete
@@ -360,11 +364,14 @@ function FileContextMenu({ file, actions, children }: { file: FileRow; actions: 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
+      <ContextMenuContent className="w-52">
         <ContextMenuItem onSelect={() => actions.onDownload(file)}><Download className="size-3.5 mr-2" /> Download</ContextMenuItem>
-        <ContextMenuItem onSelect={() => actions.onShare(file)}><Share2 className="size-3.5 mr-2" /> Share</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onCopyLink(file)}><Link2 className="size-3.5 mr-2" /> Copy link</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onShare(file)}><Share2 className="size-3.5 mr-2" /> Share with people</ContextMenuItem>
+        <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.onStar(file)}><Star className={cn("size-3.5 mr-2", file.starred && "fill-current")} /> {file.starred ? "Unstar" : "Star"}</ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.onRename(file)}><Pencil className="size-3.5 mr-2" /> Rename</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onMove(file)}><Move className="size-3.5 mr-2" /> Move…</ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.onDelete(file)} className="text-destructive focus:text-destructive">
           <Trash2 className="size-3.5 mr-2" /> Delete
