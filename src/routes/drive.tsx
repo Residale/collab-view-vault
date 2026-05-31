@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
-  Download, Pencil, Trash2, Move, Link2, Sun, Moon, Command as CommandIcon,
+  Download, Pencil, Trash2, Move, Link2, Sun, Moon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
