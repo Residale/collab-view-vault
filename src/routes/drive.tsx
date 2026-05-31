@@ -1,15 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
-  LogOut, Plus, Search, Share2, Star, Trash2, Upload, Clock, Inbox, Send,
+  LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
+  Download, Pencil, Trash2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
-  createFolder, deleteFile, getSignedUrl, listFiles, listFolders, listRecent,
-  listSharedByMe, listSharedWithMe, listStarred, toggleStar, uploadFile,
+  createFolder, deleteFile, deleteFolder, getSignedUrl, listFiles, listFolders, listRecent,
+  listSharedByMe, listSharedWithMe, listStarred, renameFile, renameFolder, toggleStar, uploadFile,
   type FileRow, type FolderRow, type Section, formatBytes,
 } from "@/lib/drive-api";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,9 @@ import { FileIcon } from "@/components/drive/FileIcon";
 import { PreviewPane } from "@/components/drive/PreviewPane";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
+import {
+  ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 export const Route = createFileRoute("/drive")({
   head: () => ({
@@ -43,15 +47,15 @@ function DrivePage() {
 
   const [section, setSection] = useState<Section>("my");
   const [view, setView] = useState<ViewMode>("columns");
-  // Each entry is the folder id selected at that column depth. null = root.
   const [path, setPath] = useState<(string | null)[]>([null]);
   const [selectedFile, setSelectedFile] = useState<FileRow | null>(null);
   const [shareTarget, setShareTarget] = useState<ShareTargetInput | null>(null);
   const [folderDialog, setFolderDialog] = useState(false);
   const [search, setSearch] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
 
-  // reset when switching section
   useEffect(() => { setPath([null]); setSelectedFile(null); }, [section]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["drive"] });
@@ -60,10 +64,12 @@ function DrivePage() {
     return <div className="min-h-screen grid place-items-center text-muted-foreground text-sm">Loading…</div>;
   }
 
-  const handleUpload = async (files: FileList | null) => {
+  const handleUpload = async (files: FileList | File[] | null) => {
     if (!files) return;
+    const arr = Array.from(files);
+    if (!arr.length) return;
     const currentFolder = path[path.length - 1];
-    for (const f of Array.from(files)) {
+    for (const f of arr) {
       try {
         await uploadFile(user.id, currentFolder, f);
         toast.success(`Uploaded ${f.name}`);
@@ -79,22 +85,100 @@ function DrivePage() {
     } catch (e: any) { toast.error(e.message); }
   };
 
-  const onDelete = async (f: FileRow) => {
-    if (!confirm(`Delete ${f.name}?`)) return;
-    try { await deleteFile(f); setSelectedFile(null); invalidate(); toast.success("Deleted"); }
+  const onDeleteFile = async (f: FileRow) => {
+    if (!confirm(`Delete "${f.name}"?`)) return;
+    try { await deleteFile(f); if (selectedFile?.id === f.id) setSelectedFile(null); invalidate(); toast.success("Deleted"); }
     catch (e: any) { toast.error(e.message); }
+  };
+
+  const onDeleteFolder = async (f: FolderRow) => {
+    if (!confirm(`Delete folder "${f.name}"? Its files and subfolders will also be removed.`)) return;
+    try {
+      await deleteFolder(f.id);
+      setPath((p) => p.filter((id) => id !== f.id));
+      invalidate();
+      toast.success("Folder deleted");
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const onRenameFile = async (f: FileRow) => {
+    const name = prompt("Rename file", f.name);
+    if (!name || name === f.name) return;
+    try { await renameFile(f.id, name); invalidate(); } catch (e: any) { toast.error(e.message); }
+  };
+
+  const onRenameFolder = async (f: FolderRow) => {
+    const name = prompt("Rename folder", f.name);
+    if (!name || name === f.name) return;
+    try { await renameFolder(f.id, name); invalidate(); } catch (e: any) { toast.error(e.message); }
   };
 
   const onStar = async (f: FileRow) => {
     try { await toggleStar(f); invalidate(); } catch (e: any) { toast.error(e.message); }
   };
 
+  // Drag & drop
+  const onDragEnter = (e: React.DragEvent) => {
+    if (section !== "my") return;
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    dragCounter.current++;
+    setDragOver(true);
+  };
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current--;
+    if (dragCounter.current <= 0) { dragCounter.current = 0; setDragOver(false); }
+  };
+  const onDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current = 0;
+    setDragOver(false);
+    if (section !== "my") { toast.error("Switch to My Drive to upload"); return; }
+    handleUpload(e.dataTransfer.files);
+  };
+
+  const folderActions = {
+    onShare: (f: FolderRow) => setShareTarget({ type: "folder", id: f.id, name: f.name, ownerId: f.owner_id }),
+    onRename: onRenameFolder,
+    onDelete: onDeleteFolder,
+  };
+  const fileActions = {
+    onShare: (f: FileRow) => setShareTarget({ type: "file", id: f.id, name: f.name, ownerId: f.owner_id }),
+    onRename: onRenameFile,
+    onDelete: onDeleteFile,
+    onDownload,
+    onStar,
+  };
+
   return (
-    <div className="flex h-screen bg-background text-foreground font-sans selection:bg-muted">
+    <div
+      className="flex h-screen bg-background text-foreground font-sans selection:bg-muted relative"
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
       <input
         ref={fileInputRef} type="file" multiple className="hidden"
         onChange={(e) => { handleUpload(e.target.files); e.target.value = ""; }}
       />
+
+      {/* Drag overlay */}
+      {dragOver && (
+        <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm grid place-items-center pointer-events-none border-2 border-dashed border-primary m-3 rounded-xl">
+          <div className="text-center">
+            <Upload className="size-10 mx-auto mb-3 text-primary" />
+            <p className="text-lg font-medium">Drop files to upload</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Into {path.length > 1 ? "current folder" : "My Drive"}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Sidebar */}
       <aside className="w-60 bg-sidebar border-r border-hairline flex flex-col shrink-0">
@@ -129,7 +213,6 @@ function DrivePage() {
 
       {/* Main */}
       <main className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
         <header className="h-14 border-b border-hairline flex items-center justify-between px-6 bg-background gap-4">
           <Breadcrumb section={section} path={path} setPath={setPath} />
           <div className="flex items-center gap-3 shrink-0">
@@ -149,7 +232,6 @@ function DrivePage() {
           </div>
         </header>
 
-        {/* Body */}
         <div className="flex-1 flex overflow-hidden">
           {view === "columns" ? (
             <ColumnsView
@@ -160,7 +242,8 @@ function DrivePage() {
               search={search}
               selectedFile={selectedFile}
               onSelectFile={setSelectedFile}
-              onShareFolder={(f) => setShareTarget({ type: "folder", id: f.id, name: f.name, ownerId: f.owner_id })}
+              folderActions={folderActions}
+              fileActions={fileActions}
             />
           ) : (
             <FlatView
@@ -172,14 +255,15 @@ function DrivePage() {
               selectedFile={selectedFile}
               onOpenFolder={(f) => setPath([...path, f.id])}
               onSelectFile={setSelectedFile}
-              onShareFolder={(f) => setShareTarget({ type: "folder", id: f.id, name: f.name, ownerId: f.owner_id })}
+              folderActions={folderActions}
+              fileActions={fileActions}
             />
           )}
 
           <PreviewPane
             file={selectedFile}
-            onShare={(f) => setShareTarget({ type: "file", id: f.id, name: f.name, ownerId: f.owner_id })}
-            onDelete={onDelete}
+            onShare={fileActions.onShare}
+            onDelete={onDeleteFile}
             onToggleStar={onStar}
             onDownload={onDownload}
           />
@@ -199,6 +283,53 @@ function DrivePage() {
         }}
       />
     </div>
+  );
+}
+
+type FolderActions = {
+  onShare: (f: FolderRow) => void;
+  onRename: (f: FolderRow) => void;
+  onDelete: (f: FolderRow) => void;
+};
+type FileActions = {
+  onShare: (f: FileRow) => void;
+  onRename: (f: FileRow) => void;
+  onDelete: (f: FileRow) => void;
+  onDownload: (f: FileRow) => void;
+  onStar: (f: FileRow) => void;
+};
+
+function FolderContextMenu({ folder, actions, children }: { folder: FolderRow; actions: FolderActions; children: React.ReactNode }) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onSelect={() => actions.onShare(folder)}><Share2 className="size-3.5 mr-2" /> Share</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onRename(folder)}><Pencil className="size-3.5 mr-2" /> Rename</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => actions.onDelete(folder)} className="text-destructive focus:text-destructive">
+          <Trash2 className="size-3.5 mr-2" /> Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+function FileContextMenu({ file, actions, children }: { file: FileRow; actions: FileActions; children: React.ReactNode }) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onSelect={() => actions.onDownload(file)}><Download className="size-3.5 mr-2" /> Download</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onShare(file)}><Share2 className="size-3.5 mr-2" /> Share</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onStar(file)}><Star className={cn("size-3.5 mr-2", file.starred && "fill-current")} /> {file.starred ? "Unstar" : "Star"}</ContextMenuItem>
+        <ContextMenuItem onSelect={() => actions.onRename(file)}><Pencil className="size-3.5 mr-2" /> Rename</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => actions.onDelete(file)} className="text-destructive focus:text-destructive">
+          <Trash2 className="size-3.5 mr-2" /> Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -274,7 +405,8 @@ function ColumnsView(props: {
   search: string;
   selectedFile: FileRow | null;
   onSelectFile: (f: FileRow | null) => void;
-  onShareFolder: (f: FolderRow) => void;
+  folderActions: FolderActions;
+  fileActions: FileActions;
 }) {
   return (
     <div className="flex-1 flex overflow-x-auto thin-scroll bg-background min-w-0">
@@ -296,9 +428,10 @@ function Column(props: {
   search: string;
   selectedFile: FileRow | null;
   onSelectFile: (f: FileRow | null) => void;
-  onShareFolder: (f: FolderRow) => void;
+  folderActions: FolderActions;
+  fileActions: FileActions;
 }) {
-  const { userId, section, parentId, depth, path, setPath, search, selectedFile, onSelectFile, onShareFolder } = props;
+  const { userId, section, parentId, depth, path, setPath, search, selectedFile, onSelectFile, folderActions, fileActions } = props;
   const activeChildId = path[depth + 1] ?? null;
 
   const { data, isLoading } = useQuery({
@@ -334,39 +467,40 @@ function Column(props: {
       <div className="flex-1 overflow-y-auto thin-scroll p-1.5 space-y-0.5">
         {isLoading && <div className="px-3 py-2 text-xs text-muted-foreground">Loading…</div>}
         {folders.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => { onSelectFile(null); setPath([...path.slice(0, depth + 1), f.id]); }}
-            onDoubleClick={() => onShareFolder(f)}
-            className={cn(
-              "w-full px-3 py-2 text-sm rounded-md flex items-center justify-between gap-2 group transition-colors",
-              activeChildId === f.id ? "bg-surface-2 ring-1 ring-hairline" : "hover:bg-surface-2/60",
-            )}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <Folder className="size-4 text-muted-foreground shrink-0" />
-              <span className="truncate font-medium">{f.name}</span>
-            </div>
-            <ChevronRight className="size-3.5 text-muted-foreground/60 shrink-0" />
-          </button>
+          <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
+            <button
+              onClick={() => { onSelectFile(null); setPath([...path.slice(0, depth + 1), f.id]); }}
+              className={cn(
+                "w-full px-3 py-2 text-sm rounded-md flex items-center justify-between gap-2 group transition-colors",
+                activeChildId === f.id ? "bg-surface-2 ring-1 ring-hairline" : "hover:bg-surface-2/60",
+              )}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Folder className="size-4 text-muted-foreground shrink-0" />
+                <span className="truncate font-medium">{f.name}</span>
+              </div>
+              <ChevronRight className="size-3.5 text-muted-foreground/60 shrink-0" />
+            </button>
+          </FolderContextMenu>
         ))}
         {files.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => onSelectFile(f)}
-            className={cn(
-              "w-full px-2.5 py-1.5 text-sm rounded-md flex items-center gap-2.5 transition-colors text-left",
-              selectedFile?.id === f.id ? "bg-primary text-primary-foreground" : "hover:bg-surface-2/60",
-            )}
-          >
-            <FileIcon name={f.name} mime={f.mime_type} className="size-7" />
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">{f.name}</div>
-              <div className={cn("text-[10px]", selectedFile?.id === f.id ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                {formatBytes(f.size)}
+          <FileContextMenu key={f.id} file={f} actions={fileActions}>
+            <button
+              onClick={() => onSelectFile(f)}
+              className={cn(
+                "w-full px-2.5 py-1.5 text-sm rounded-md flex items-center gap-2.5 transition-colors text-left",
+                selectedFile?.id === f.id ? "bg-primary text-primary-foreground" : "hover:bg-surface-2/60",
+              )}
+            >
+              <FileIcon name={f.name} mime={f.mime_type} className="size-7" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">{f.name}</div>
+                <div className={cn("text-[10px]", selectedFile?.id === f.id ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                  {formatBytes(f.size)}
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+          </FileContextMenu>
         ))}
         {!isLoading && folders.length === 0 && files.length === 0 && (
           <div className="px-3 py-6 text-xs text-muted-foreground text-center">Empty</div>
@@ -384,9 +518,10 @@ function FlatView(props: {
   selectedFile: FileRow | null;
   onOpenFolder: (f: FolderRow) => void;
   onSelectFile: (f: FileRow) => void;
-  onShareFolder: (f: FolderRow) => void;
+  folderActions: FolderActions;
+  fileActions: FileActions;
 }) {
-  const { userId, section, path, search, mode, selectedFile, onOpenFolder, onSelectFile, onShareFolder } = props;
+  const { userId, section, path, search, mode, selectedFile, onOpenFolder, onSelectFile, folderActions, fileActions } = props;
   const parentId = path[path.length - 1];
 
   const { data, isLoading } = useQuery({
@@ -420,40 +555,42 @@ function FlatView(props: {
             <span>Name</span><span>Size</span><span>Modified</span><span></span>
           </div>
           {folders.map((f) => (
-            <button
-              key={f.id}
-              onDoubleClick={() => onOpenFolder(f)}
-              onClick={() => onOpenFolder(f)}
-              className="w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm hover:bg-surface-2/60 group"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <Folder className="size-4 text-muted-foreground" />
-                <span className="truncate font-medium">{f.name}</span>
-              </div>
-              <span className="text-muted-foreground">—</span>
-              <span className="text-muted-foreground">{new Date(f.updated_at).toLocaleDateString()}</span>
-              <span className="opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); onShareFolder(f); }}>
-                <Share2 className="size-3.5 text-muted-foreground hover:text-foreground" />
-              </span>
-            </button>
+            <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
+              <button
+                onDoubleClick={() => onOpenFolder(f)}
+                onClick={() => onOpenFolder(f)}
+                className="w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm hover:bg-surface-2/60 group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Folder className="size-4 text-muted-foreground" />
+                  <span className="truncate font-medium">{f.name}</span>
+                </div>
+                <span className="text-muted-foreground">—</span>
+                <span className="text-muted-foreground">{new Date(f.updated_at).toLocaleDateString()}</span>
+                <span className="opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); folderActions.onShare(f); }}>
+                  <Share2 className="size-3.5 text-muted-foreground hover:text-foreground" />
+                </span>
+              </button>
+            </FolderContextMenu>
           ))}
           {files.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => onSelectFile(f)}
-              className={cn(
-                "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm",
-                selectedFile?.id === f.id ? "bg-surface-2" : "hover:bg-surface-2/60",
-              )}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <FileIcon name={f.name} mime={f.mime_type} className="size-7" />
-                <span className="truncate font-medium">{f.name}</span>
-              </div>
-              <span className="text-muted-foreground">{formatBytes(f.size)}</span>
-              <span className="text-muted-foreground">{new Date(f.updated_at).toLocaleDateString()}</span>
-              <span></span>
-            </button>
+            <FileContextMenu key={f.id} file={f} actions={fileActions}>
+              <button
+                onClick={() => onSelectFile(f)}
+                className={cn(
+                  "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm",
+                  selectedFile?.id === f.id ? "bg-surface-2" : "hover:bg-surface-2/60",
+                )}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <FileIcon name={f.name} mime={f.mime_type} className="size-7" />
+                  <span className="truncate font-medium">{f.name}</span>
+                </div>
+                <span className="text-muted-foreground">{formatBytes(f.size)}</span>
+                <span className="text-muted-foreground">{new Date(f.updated_at).toLocaleDateString()}</span>
+                <span></span>
+              </button>
+            </FileContextMenu>
           ))}
           {!isLoading && folders.length === 0 && files.length === 0 && (
             <div className="p-12 text-center text-sm text-muted-foreground">Nothing here yet.</div>
@@ -464,30 +601,32 @@ function FlatView(props: {
       {mode === "grid" && (
         <div className="p-6 grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
           {folders.map((f) => (
-            <button
-              key={f.id}
-              onDoubleClick={() => onOpenFolder(f)}
-              onClick={() => onOpenFolder(f)}
-              className="aspect-[4/5] rounded-lg ring-1 ring-hairline bg-surface hover:bg-surface-2 transition-colors p-4 flex flex-col text-left"
-            >
-              <Folder className="size-8 text-muted-foreground mb-auto" />
-              <div className="text-sm font-medium truncate">{f.name}</div>
-              <div className="text-[10px] text-muted-foreground">Folder</div>
-            </button>
+            <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
+              <button
+                onDoubleClick={() => onOpenFolder(f)}
+                onClick={() => onOpenFolder(f)}
+                className="aspect-[4/5] rounded-lg ring-1 ring-hairline bg-surface hover:bg-surface-2 transition-colors p-4 flex flex-col text-left"
+              >
+                <Folder className="size-8 text-muted-foreground mb-auto" />
+                <div className="text-sm font-medium truncate">{f.name}</div>
+                <div className="text-[10px] text-muted-foreground">Folder</div>
+              </button>
+            </FolderContextMenu>
           ))}
           {files.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => onSelectFile(f)}
-              className={cn(
-                "aspect-[4/5] rounded-lg ring-1 transition-colors p-4 flex flex-col text-left",
-                selectedFile?.id === f.id ? "ring-primary bg-surface-2" : "ring-hairline bg-surface hover:bg-surface-2",
-              )}
-            >
-              <FileIcon name={f.name} mime={f.mime_type} className="size-10 mb-auto" />
-              <div className="text-sm font-medium truncate">{f.name}</div>
-              <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
-            </button>
+            <FileContextMenu key={f.id} file={f} actions={fileActions}>
+              <button
+                onClick={() => onSelectFile(f)}
+                className={cn(
+                  "aspect-[4/5] rounded-lg ring-1 transition-colors p-4 flex flex-col text-left",
+                  selectedFile?.id === f.id ? "ring-primary bg-surface-2" : "ring-hairline bg-surface hover:bg-surface-2",
+                )}
+              >
+                <FileIcon name={f.name} mime={f.mime_type} className="size-10 mb-auto" />
+                <div className="text-sm font-medium truncate">{f.name}</div>
+                <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
+              </button>
+            </FileContextMenu>
           ))}
           {!isLoading && folders.length === 0 && files.length === 0 && (
             <div className="col-span-full p-12 text-center text-sm text-muted-foreground">Nothing here yet.</div>
