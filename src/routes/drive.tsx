@@ -5,12 +5,13 @@ import { toast } from "sonner";
 import {
   ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
-  Download, Pencil, Trash2,
+  Download, Pencil, Trash2, Move, Link2, Sun, Moon, Command as CommandIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   createFolder, deleteFile, deleteFolder, getSignedUrl, listFiles, listFolders, listRecent,
-  listSharedByMe, listSharedWithMe, listStarred, renameFile, renameFolder, toggleStar, uploadFile,
+  listSharedByMe, listSharedWithMe, listStarred, moveFile, moveFolder, renameFile, renameFolder,
+  toggleStar, uploadFile,
   type FileRow, type FolderRow, type Section, formatBytes,
 } from "@/lib/drive-api";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,9 @@ import { FileIcon } from "@/components/drive/FileIcon";
 import { PreviewPane } from "@/components/drive/PreviewPane";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
+import { RenameDialog } from "@/components/drive/RenameDialog";
+import { MoveDialog } from "@/components/drive/MoveDialog";
+import { CommandPalette } from "@/components/drive/CommandPalette";
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
 } from "@/components/ui/context-menu";
