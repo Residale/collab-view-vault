@@ -326,6 +326,7 @@ function DrivePage() {
 
   // Keyboard shortcuts
   useEffect(() => {
+    const focusFile = previewFile ?? selectedFile;
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       const inField = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
@@ -343,17 +344,18 @@ function DrivePage() {
       if (inField) return;
       if (e.key === "Escape") {
         if (quickLook) { setQuickLook(null); return; }
+        if (previewFile) { setPreviewFile(null); return; }
         if (selectedIds.size) { clearSelection(); return; }
       }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.size) {
         e.preventDefault(); onDeleteSelection(); return;
       }
       // Space = Quick Look (Mac Finder style)
-      if (e.key === " " && selectedFile && !quickLook) {
-        e.preventDefault(); setQuickLook(selectedFile); return;
+      if (e.key === " " && focusFile && !quickLook) {
+        e.preventDefault(); setQuickLook(focusFile); return;
       }
       // Enter = open / download
-      if (e.key === "Enter" && selectedFile) { e.preventDefault(); onDownload(selectedFile); return; }
+      if (e.key === "Enter" && focusFile) { e.preventDefault(); onDownload(focusFile); return; }
       // Single-key shortcuts (no modifier). Skip if user is selecting text,
       // so we never hijack standard copy/paste/selection flows.
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -362,18 +364,18 @@ function DrivePage() {
       if (e.key === "/") { e.preventDefault(); setPaletteOpen(true); return; }
       if (e.key.toLowerCase() === "n" && section === "my") { e.preventDefault(); setFolderDialog(true); return; }
       if (e.key.toLowerCase() === "u" && section === "my") { e.preventDefault(); fileInputRef.current?.click(); return; }
-      if (e.key.toLowerCase() === "r" && selectedFile) {
+      if (e.key.toLowerCase() === "r" && focusFile) {
         e.preventDefault();
-        setRenameTarget({ kind: "file", id: selectedFile.id, name: selectedFile.name });
+        setRenameTarget({ kind: "file", id: focusFile.id, name: focusFile.name });
         return;
       }
-      if (e.key.toLowerCase() === "s" && selectedFile) {
-        e.preventDefault(); onStar(selectedFile); return;
+      if (e.key.toLowerCase() === "s" && focusFile) {
+        e.preventDefault(); onStar(focusFile); return;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedFile, selectedIds, quickLook, activeFiles, section]);
+  }, [selectedFile, previewFile, selectedIds, quickLook, activeFiles, section]);
 
   // Drag & drop
   const onDragEnter = (e: React.DragEvent) => {
