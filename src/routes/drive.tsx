@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Thumbnail } from "@/components/drive/Thumbnail";
+import { FileTypeBadge } from "@/components/drive/FileIcon";
 import { QuickLook } from "@/components/drive/QuickLook";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
