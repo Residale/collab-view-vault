@@ -1189,17 +1189,79 @@ function ColumnsView(props: SharedViewProps & {
   setPath: (p: (string | null)[]) => void;
   onDropExternalFiles: (parentFolderId: string | null, files: FileList) => void | Promise<void>;
 }) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
+  const depth = props.path.length;
+
+  // Auto-scroll to the newly opened (rightmost) column whenever the path grows.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    // Wait one frame so the new column has been laid out.
+    const id = requestAnimationFrame(() => {
+      el.scrollTo({ left: el.scrollWidth, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [depth]);
+
+  // Track which arrows to show (hide when at an edge).
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const update = () => {
+      const max = el.scrollWidth - el.clientWidth - 1;
+      setEdges({ left: el.scrollLeft > 1, right: el.scrollLeft < max });
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", update); ro.disconnect(); };
+  }, [depth]);
+
+  const scrollBy = (dir: -1 | 1) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.max(288, el.clientWidth * 0.6), behavior: "smooth" });
+  };
+
   return (
-    <div className="flex-1 flex overflow-x-auto thin-scroll bg-background min-w-0">
-      {props.path.map((parentId, depth) => (
-        <Column
-          key={`${depth}-${parentId ?? "root"}`}
-          {...props}
-          parentId={parentId}
-          depth={depth}
-          isLast={depth === props.path.length - 1}
-        />
-      ))}
+    <div className="flex-1 relative min-w-0">
+      <div
+        ref={scrollerRef}
+        className="absolute inset-0 flex overflow-x-auto thin-scroll bg-background"
+        style={{ scrollBehavior: "smooth" }}
+      >
+        {props.path.map((parentId, d) => (
+          <Column
+            key={`${d}-${parentId ?? "root"}`}
+            {...props}
+            parentId={parentId}
+            depth={d}
+            isLast={d === props.path.length - 1}
+          />
+        ))}
+      </div>
+      {edges.left && (
+        <button
+          onClick={() => scrollBy(-1)}
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 size-8 grid place-items-center rounded-full bg-background/90 backdrop-blur ring-1 ring-hairline text-muted-foreground hover:text-foreground hover:bg-background shadow-architect"
+          title="Scroll left"
+          aria-label="Scroll columns left"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+      )}
+      {edges.right && (
+        <button
+          onClick={() => scrollBy(1)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 size-8 grid place-items-center rounded-full bg-background/90 backdrop-blur ring-1 ring-hairline text-muted-foreground hover:text-foreground hover:bg-background shadow-architect"
+          title="Scroll right"
+          aria-label="Scroll columns right"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      )}
     </div>
   );
 }
