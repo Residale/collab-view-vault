@@ -865,9 +865,9 @@ function Column(props: {
           </div>
         )}
 
-        {/* Files — square thumbnail grid */}
+        {/* Files — compact list rows (Finder-style), NOT cards */}
         {files.length > 0 && (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-0.5">
             {files.map((f) => {
               const isSelected = selectedIds.has(f.id);
               return (
@@ -881,33 +881,36 @@ function Column(props: {
                     onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
                     onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                     className={cn(
-                      "rounded-lg ring-1 transition-all overflow-hidden text-left bg-surface group",
+                      "w-full px-2 py-1.5 rounded-md flex items-center gap-2.5 text-left transition-colors group",
                       isSelected
-                        ? "ring-2 ring-primary shadow-pane"
-                        : "ring-hairline hover:ring-foreground/20 hover:shadow-architect",
+                        ? "bg-primary/15 ring-1 ring-primary/40"
+                        : "hover:bg-surface-2/60",
                     )}
                     title={f.name}
                   >
-                    <div className="aspect-square w-full overflow-hidden bg-surface-2 relative">
-                      <Thumbnail file={f} className="size-full" iconClassName="size-8 opacity-70" />
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
-                        className="absolute top-1.5 right-1.5 size-6 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 transition-opacity ring-1 ring-hairline hover:bg-background"
-                        title="Quick Look (Space)"
-                      >
-                        <Eye className="size-3" />
-                      </button>
+                    <Thumbnail
+                      file={f}
+                      className="size-7 rounded ring-1 ring-hairline shrink-0 bg-surface-2"
+                      iconClassName="size-3.5"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-medium truncate leading-tight">{f.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
                     </div>
-                    <div className="px-2 py-1.5 border-t border-hairline">
-                      <div className="text-[11px] font-medium truncate leading-tight">{f.name}</div>
-                      <div className="text-[9px] text-muted-foreground mt-0.5">{formatBytes(f.size)}</div>
-                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
+                      className="size-6 grid place-items-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-surface-2"
+                      title="Quick Look (Space)"
+                    >
+                      <Eye className="size-3" />
+                    </button>
                   </button>
                 </FileContextMenu>
               );
             })}
           </div>
         )}
+
 
         {!isLoading && folders.length === 0 && files.length === 0 && (
           <div className="px-3 py-6 text-xs text-muted-foreground text-center">Empty</div>
