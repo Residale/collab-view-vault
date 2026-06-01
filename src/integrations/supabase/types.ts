@@ -72,6 +72,7 @@ export type Database = {
       }
       folders: {
         Row: {
+          color: string | null
           created_at: string
           deleted_at: string | null
           id: string
@@ -81,6 +82,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          color?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
@@ -90,6 +92,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          color?: string | null
           created_at?: string
           deleted_at?: string | null
           id?: string
