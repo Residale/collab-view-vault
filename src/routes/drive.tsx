@@ -157,7 +157,7 @@ function DrivePage() {
   }, []);
 
   // Reset state when switching section
-  useEffect(() => { setPath([null]); clearSelection(); setQuickLook(null); }, [section]);
+  useEffect(() => { setPath([null]); clearSelection(); setQuickLook(null); setPreviewFile(null); }, [section]);
 
   // Theme
   useEffect(() => {
