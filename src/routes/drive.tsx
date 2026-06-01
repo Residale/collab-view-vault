@@ -1577,19 +1577,21 @@ function FlatView(props: SharedViewProps & {
             <div>
               <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-3">Folders</div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
-                {folders.map((f) => (
-                  <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
-                    <button
-                      data-drive-item="folder"
-                      onDoubleClick={() => onOpenFolder(f)}
-                      onClick={() => onOpenFolder(f)}
-                      className="h-12 rounded-lg ring-1 ring-hairline bg-surface hover:bg-surface-2 transition-colors px-3 flex items-center gap-3 text-left"
-                    >
-                      <FolderIcon color={f.color} className="size-6" />
-                      <span className="text-sm font-medium truncate">{f.name}</span>
-                    </button>
-                  </FolderContextMenu>
-                ))}
+                {folders.map((f) => {
+                  const isSel = selectedFolderIds.has(f.id);
+                  return (
+                    <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
+                      <GridFolderCard
+                        folder={f}
+                        isSelected={isSel}
+                        onOpen={() => onOpenFolder(f)}
+                        onToggleSelected={() => onToggleFolderSelected(f.id)}
+                        buildDragPayload={buildDragPayload}
+                        onDropIntoFolder={onDropIntoFolder}
+                      />
+                    </FolderContextMenu>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1601,13 +1603,15 @@ function FlatView(props: SharedViewProps & {
                   const isSelected = selectedIds.has(f.id);
                   return (
                     <FileContextMenu key={f.id} file={f} actions={fileActions}>
-                      <button
+                      <div
                         data-drive-item="file"
                         ref={(el) => { if (el) itemRefs.current.set(f.id, el); else itemRefs.current.delete(f.id); }}
+                        draggable
+                        onDragStart={(e) => setDragPayload(e, buildDragPayload("file", f.id))}
                         onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
                         onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                         className={cn(
-                          "rounded-lg ring-1 transition-all overflow-hidden flex flex-col text-left bg-surface group",
+                          "rounded-lg ring-1 transition-all overflow-hidden flex flex-col text-left bg-surface group cursor-default relative",
                           isSelected ? "ring-2 ring-primary shadow-pane" : "ring-hairline hover:ring-foreground/20 hover:shadow-architect",
                         )}
                       >
@@ -1618,20 +1622,23 @@ function FlatView(props: SharedViewProps & {
                             mime={f.mime_type}
                             className="absolute top-2 left-2"
                           />
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
-                            className="absolute top-2 right-2 size-7 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 ring-1 ring-hairline hover:bg-background"
-                            title="Quick Look (Space)"
-                          >
-                            <Eye className="size-3.5" />
-                          </button>
+                          <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                            <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
+                              className="size-7 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 ring-1 ring-hairline hover:bg-background"
+                              title="Quick Look (Space)"
+                            >
+                              <Eye className="size-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         <div className="p-2.5 border-t border-hairline bg-surface">
                           <div className="text-sm font-medium truncate">{f.name}</div>
                           <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
                         </div>
-                      </button>
+                      </div>
                     </FileContextMenu>
                   );
                 })}
