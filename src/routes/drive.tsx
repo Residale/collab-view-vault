@@ -1255,7 +1255,43 @@ function Column(props: SharedViewProps & {
   }, [selectedIds]);
 
   return (
-    <div className="w-72 border-r border-hairline flex flex-col shrink-0 bg-background">
+    <div
+      className={cn(
+        "w-72 border-r border-hairline flex flex-col shrink-0 bg-background transition-colors",
+        columnDropOver && "bg-primary/5 ring-1 ring-primary/40",
+      )}
+      onDragEnter={(e) => {
+        if (!isExternalFileDrag(e) && !isDriveDrag(e)) return;
+        e.preventDefault();
+        dropCounter.current++;
+        setColumnDropOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!isExternalFileDrag(e) && !isDriveDrag(e)) return;
+        e.preventDefault();
+        dropCounter.current--;
+        if (dropCounter.current <= 0) { dropCounter.current = 0; setColumnDropOver(false); }
+      }}
+      onDragOver={(e) => {
+        if (!isExternalFileDrag(e) && !isDriveDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = isDriveDrag(e) ? "move" : "copy";
+      }}
+      onDrop={async (e) => {
+        if (isDriveDrag(e)) {
+          e.preventDefault(); e.stopPropagation();
+          dropCounter.current = 0; setColumnDropOver(false);
+          const payload = getDragPayload(e);
+          if (payload) await onDropIntoFolder(parentId, payload);
+          return;
+        }
+        if (isExternalFileDrag(e)) {
+          e.preventDefault(); e.stopPropagation();
+          dropCounter.current = 0; setColumnDropOver(false);
+          await onDropExternalFiles(parentId, e.dataTransfer.files);
+        }
+      }}
+    >
       <div className="px-3 h-8 flex items-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground border-b border-hairline/60">
         {depth === 0 ? "Root" : "Subfolder"}
       </div>
@@ -1266,26 +1302,17 @@ function Column(props: SharedViewProps & {
         {folders.length > 0 && (
           <div className="space-y-0.5 mb-3">
             {folders.map((f) => (
-              <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
-                <button
-                  data-drive-item="folder"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onBackgroundClick();
-                    setPath([...path.slice(0, depth + 1), f.id]);
-                  }}
-                  className={cn(
-                    "w-full px-2.5 py-2 text-sm rounded-md flex items-center justify-between gap-2 transition-colors text-left",
-                    activeChildId === f.id ? "bg-surface-2 ring-1 ring-hairline" : "hover:bg-surface-2/60",
-                  )}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <FolderIcon color={f.color} className="size-5" />
-                    <span className="truncate font-medium">{f.name}</span>
-                  </div>
-                  <ChevronRight className="size-3.5 text-muted-foreground/60 shrink-0" />
-                </button>
-              </FolderContextMenu>
+              <FolderRow
+                key={f.id}
+                folder={f}
+                isActive={activeChildId === f.id}
+                isSelected={selectedFolderIds.has(f.id)}
+                onOpen={() => { onBackgroundClick(); setPath([...path.slice(0, depth + 1), f.id]); }}
+                onToggleSelected={() => onToggleFolderSelected(f.id)}
+                folderActions={folderActions}
+                buildDragPayload={buildDragPayload}
+                onDropIntoFolder={onDropIntoFolder}
+              />
             ))}
           </div>
         )}
@@ -1297,22 +1324,25 @@ function Column(props: SharedViewProps & {
               const isSelected = selectedIds.has(f.id);
               return (
                 <FileContextMenu key={f.id} file={f} actions={fileActions}>
-                  <button
+                  <div
                     data-drive-item="file"
                     ref={(el) => {
                       if (el) itemRefs.current.set(f.id, el);
                       else itemRefs.current.delete(f.id);
                     }}
+                    draggable
+                    onDragStart={(e) => setDragPayload(e, buildDragPayload("file", f.id))}
                     onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
                     onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                     className={cn(
-                      "w-full px-2 py-1.5 rounded-md flex items-center gap-2.5 text-left transition-colors group",
+                      "w-full px-2 py-1.5 rounded-md flex items-center gap-2.5 text-left transition-colors group cursor-default",
                       isSelected
                         ? "bg-primary/15 ring-1 ring-primary/40"
                         : "hover:bg-surface-2/60",
                     )}
                     title={f.name}
                   >
+                    <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
                     <div className="relative size-8 rounded-md overflow-hidden ring-1 ring-hairline bg-surface-2 shrink-0">
                       <Thumbnail file={f} className="size-full" iconClassName="size-4 opacity-70" />
                       <FileTypeBadge
@@ -1334,7 +1364,7 @@ function Column(props: SharedViewProps & {
                     >
                       <Eye className="size-3" />
                     </button>
-                  </button>
+                  </div>
                 </FileContextMenu>
               );
             })}
@@ -1343,7 +1373,9 @@ function Column(props: SharedViewProps & {
 
 
         {!isLoading && folders.length === 0 && files.length === 0 && (
-          <div className="px-3 py-6 text-xs text-muted-foreground text-center">Empty</div>
+          <div className="px-3 py-6 text-xs text-muted-foreground text-center">
+            {columnDropOver ? "Drop to add here" : "Empty"}
+          </div>
         )}
 
         {/* Lasso rectangle */}
@@ -1357,6 +1389,57 @@ function Column(props: SharedViewProps & {
     </div>
   );
 }
+
+function FolderRow({
+  folder, isActive, isSelected, onOpen, onToggleSelected,
+  folderActions, buildDragPayload, onDropIntoFolder,
+}: {
+  folder: FolderRow;
+  isActive: boolean;
+  isSelected: boolean;
+  onOpen: () => void;
+  onToggleSelected: () => void;
+  folderActions: FolderActions;
+  buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
+  onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+}) {
+  const [over, setOver] = useState(false);
+  return (
+    <FolderContextMenu folder={folder} actions={folderActions}>
+      <div
+        data-drive-item="folder"
+        draggable
+        onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
+        onDragEnter={(e) => { if (isDriveDrag(e) || isExternalFileDrag(e)) { e.preventDefault(); e.stopPropagation(); setOver(true); } }}
+        onDragOver={(e) => { if (isDriveDrag(e) || isExternalFileDrag(e)) { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = isDriveDrag(e) ? "move" : "copy"; } }}
+        onDragLeave={() => setOver(false)}
+        onDrop={async (e) => {
+          if (!isDriveDrag(e)) return;
+          e.preventDefault(); e.stopPropagation();
+          setOver(false);
+          const payload = getDragPayload(e);
+          if (payload) await onDropIntoFolder(folder.id, payload);
+        }}
+        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        className={cn(
+          "w-full px-2.5 py-2 text-sm rounded-md flex items-center justify-between gap-2 transition-colors text-left group cursor-pointer",
+          over ? "bg-primary/15 ring-1 ring-primary/50"
+            : isActive ? "bg-surface-2 ring-1 ring-hairline"
+            : isSelected ? "bg-primary/10 ring-1 ring-primary/30"
+            : "hover:bg-surface-2/60",
+        )}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <SelectionCheckbox checked={isSelected} onToggle={onToggleSelected} />
+          <FolderIcon color={folder.color} className="size-5" />
+          <span className="truncate font-medium">{folder.name}</span>
+        </div>
+        <ChevronRight className="size-3.5 text-muted-foreground/60 shrink-0" />
+      </div>
+    </FolderContextMenu>
+  );
+}
+
 
 /* ---------------- List / Grid view ---------------- */
 
