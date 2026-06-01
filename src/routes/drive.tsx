@@ -491,9 +491,7 @@ function DrivePage() {
       <main className="flex-1 flex flex-col min-w-0">
         {/* Top header: centered search bar */}
         <header className="h-16 border-b border-hairline flex items-center px-6 bg-background gap-4">
-          <div className="flex-1 min-w-0 flex items-center gap-3">
-            <Breadcrumb section={section} path={path} setPath={setPath} />
-          </div>
+          <div className="flex-1 min-w-0" />
           <div className="flex-[2] flex justify-center px-4">
             <SearchBar
               onOpenFile={(f) => { setSection("my"); setQuickLook(f); }}
