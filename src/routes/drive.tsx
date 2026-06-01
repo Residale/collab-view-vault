@@ -1456,7 +1456,7 @@ function FlatView(props: SharedViewProps & {
     onToggleFolderSelected, onToggleFileSelected,
     buildDragPayload, onDropIntoFolder,
   } = props;
-  void onActiveFolders; void selectedFolderIds; void onToggleFolderSelected; void onToggleFileSelected; void buildDragPayload; void onDropIntoFolder;
+  // onActiveFolders published below alongside files; other props used in rows.
   const parentId = path[path.length - 1];
 
   const { data, isLoading } = useQuery({
