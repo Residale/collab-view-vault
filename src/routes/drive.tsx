@@ -6,13 +6,14 @@ import {
   ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
   Download, Pencil, Trash2, Move, Link2, Sun, Moon, Eye, RotateCcw, X,
+  Palette, Check,
 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
 import {
   createFolder, deleteFile, deleteFolder, getSignedUrl, listFiles, listFolders, listRecent,
   listSharedByMe, listSharedWithMe, listStarred, listTrash, moveFile, moveFolder, renameFile, renameFolder,
-  restoreFile, restoreFolder, toggleStar, trashFile, trashFolder, uploadFile,
+  restoreFile, restoreFolder, setFolderColor, toggleStar, trashFile, trashFolder, uploadFile,
   type FileRow, type FolderRow, type Section, formatBytes,
 } from "@/lib/drive-api";
 
@@ -21,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Thumbnail } from "@/components/drive/Thumbnail";
 import { FileTypeBadge, FileIcon } from "@/components/drive/FileIcon";
+import { FolderIcon, FOLDER_PALETTE, DEFAULT_FOLDER_COLOR } from "@/components/drive/FolderIcon";
 import { QuickLook } from "@/components/drive/QuickLook";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
@@ -31,6 +33,7 @@ import { SearchBar, type SearchFilters } from "@/components/drive/SearchBar";
 import { SearchResults } from "@/components/drive/SearchResults";
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
+  ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent,
 } from "@/components/ui/context-menu";
 
 export const Route = createFileRoute("/drive")({
