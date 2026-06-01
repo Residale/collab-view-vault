@@ -1133,17 +1133,29 @@ function useLasso(
 
 /* ---------------- Columns view (Finder-style) ---------------- */
 
-function ColumnsView(props: {
-  userId: string; section: Section; path: (string | null)[];
-  setPath: (p: (string | null)[]) => void;
+type SharedViewProps = {
+  userId: string;
+  section: Section;
+  path: (string | null)[];
   search: string;
   selectedIds: Set<string>;
+  selectedFolderIds: Set<string>;
   onFileClick: (f: FileRow, e: React.MouseEvent) => void;
   onFileOpen: (f: FileRow) => void;
   onBackgroundClick: () => void;
   onActiveFiles: (files: FileRow[]) => void;
+  onActiveFolders: (folders: FolderRow[]) => void;
   folderActions: FolderActions;
   fileActions: FileActions;
+  onToggleFolderSelected: (id: string) => void;
+  onToggleFileSelected: (id: string) => void;
+  buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
+  onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+};
+
+function ColumnsView(props: SharedViewProps & {
+  setPath: (p: (string | null)[]) => void;
+  onDropExternalFiles: (parentFolderId: string | null, files: FileList) => void | Promise<void>;
 }) {
   return (
     <div className="flex-1 flex overflow-x-auto thin-scroll bg-background min-w-0">
@@ -1160,17 +1172,12 @@ function ColumnsView(props: {
   );
 }
 
-function Column(props: {
-  userId: string; section: Section; parentId: string | null; depth: number; isLast: boolean;
-  path: (string | null)[]; setPath: (p: (string | null)[]) => void;
-  search: string;
-  selectedIds: Set<string>;
-  onFileClick: (f: FileRow, e: React.MouseEvent) => void;
-  onFileOpen: (f: FileRow) => void;
-  onBackgroundClick: () => void;
-  onActiveFiles: (files: FileRow[]) => void;
-  folderActions: FolderActions;
-  fileActions: FileActions;
+function Column(props: SharedViewProps & {
+  parentId: string | null;
+  depth: number;
+  isLast: boolean;
+  setPath: (p: (string | null)[]) => void;
+  onDropExternalFiles: (parentFolderId: string | null, files: FileList) => void | Promise<void>;
 }) {
   const {
     userId, section, parentId, depth, isLast, path, setPath, search,
