@@ -523,6 +523,12 @@ function DrivePage() {
           </div>
         </header>
 
+        {section !== "trash" && !activeQuery && (
+          <div className="border-b border-hairline bg-background px-6 py-2.5 flex items-center">
+            <Breadcrumb section={section} path={path} setPath={setPath} />
+          </div>
+        )}
+
         <div className="flex-1 flex overflow-hidden">
           {section === "trash" ? (
             <TrashView userId={user.id} invalidate={invalidate} />
