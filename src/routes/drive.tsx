@@ -1181,8 +1181,11 @@ function Column(props: SharedViewProps & {
 }) {
   const {
     userId, section, parentId, depth, isLast, path, setPath, search,
-    selectedIds, onFileClick, onFileOpen, onBackgroundClick, onActiveFiles,
+    selectedIds, selectedFolderIds,
+    onFileClick, onFileOpen, onBackgroundClick, onActiveFiles, onActiveFolders,
     folderActions, fileActions,
+    onToggleFolderSelected, onToggleFileSelected,
+    buildDragPayload, onDropIntoFolder, onDropExternalFiles,
   } = props;
   const activeChildId = path[depth + 1] ?? null;
 
