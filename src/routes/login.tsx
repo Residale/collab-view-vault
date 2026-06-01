@@ -114,6 +114,37 @@ function LoginPage() {
             </Button>
           </form>
 
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            className="w-full mt-3"
+            onClick={async () => {
+              setBusy(true);
+              const demoEmail = "demo@archiv.app";
+              const demoPass = "demo-archiv-2026";
+              try {
+                let { error } = await supabase.auth.signInWithPassword({
+                  email: demoEmail, password: demoPass,
+                });
+                if (error) {
+                  const { error: e2 } = await supabase.auth.signUp({
+                    email: demoEmail, password: demoPass,
+                    options: { data: { display_name: "Demo" } },
+                  });
+                  if (e2) throw e2;
+                  await supabase.auth.signInWithPassword({ email: demoEmail, password: demoPass });
+                }
+              } catch (err: any) {
+                toast.error(err.message ?? "Demo login failed");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Continue with demo account
+          </Button>
+
           <button
             onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
             className="mt-6 text-sm text-muted-foreground hover:text-foreground transition-colors"
