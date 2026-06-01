@@ -116,11 +116,15 @@ export function PreviewPane({
 
         {/* Title */}
         <div className="min-w-0">
-          <h1 className="text-base font-semibold tracking-tight truncate">{file.name}</h1>
+          <h1 className="text-base font-semibold tracking-tight truncate">
+            <HighlightedText text={file.name} query={searchQuery} />
+          </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {formatBytes(file.size)} · Updated {new Date(file.updated_at).toLocaleDateString()}
           </p>
         </div>
+
+        {searchQuery && <ContentMatches fileId={file.id} query={searchQuery} />}
 
         {/* Primary action buttons — large, prominent */}
         <div className="grid grid-cols-2 gap-2">
