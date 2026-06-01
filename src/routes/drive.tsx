@@ -348,8 +348,10 @@ function DrivePage() {
       }
       // Enter = open / download
       if (e.key === "Enter" && selectedFile) { e.preventDefault(); onDownload(selectedFile); return; }
-      // Single-key shortcuts (no modifier)
+      // Single-key shortcuts (no modifier). Skip if user is selecting text,
+      // so we never hijack standard copy/paste/selection flows.
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((window.getSelection?.()?.toString().length ?? 0) > 0) return;
       if (e.key === "?" || (e.shiftKey && e.key === "/")) { e.preventDefault(); setCheatsheetOpen(true); return; }
       if (e.key === "/") { e.preventDefault(); setPaletteOpen(true); return; }
       if (e.key.toLowerCase() === "n" && section === "my") { e.preventDefault(); setFolderDialog(true); return; }
