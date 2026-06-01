@@ -29,7 +29,8 @@ export function SelectionCheckbox({
         "size-4 rounded-[5px] grid place-items-center cursor-pointer transition-all shrink-0",
         checked
           ? "bg-primary border border-primary text-primary-foreground opacity-100"
-          : "bg-background/80 border border-foreground/40 opacity-60 hover:opacity-100 hover:border-foreground/70 backdrop-blur",
+          // Hidden by default — only revealed on hover of the parent (.group)
+          : "bg-background/80 border border-foreground/40 opacity-0 group-hover:opacity-100 hover:border-foreground/70 backdrop-blur",
         className,
       )}
     >
