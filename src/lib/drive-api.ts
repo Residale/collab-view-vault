@@ -134,13 +134,21 @@ export async function uniqueNameInFolder(
   desiredName: string,
   kind: "file" | "folder",
 ): Promise<string> {
-  const table = kind === "file" ? "files" : "folders";
-  const column = kind === "file" ? "folder_id" : "parent_id";
-  let q = supabase.from(table).select("name").eq("owner_id", ownerId).is("deleted_at", null);
-  q = folderId === null ? q.is(column, null) : q.eq(column, folderId);
-  const { data, error } = await q;
-  if (error) throw error;
-  const taken = new Set((data ?? []).map((r: { name: string }) => r.name.toLowerCase()));
+  let rows: { name: string }[];
+  if (kind === "file") {
+    let q = supabase.from("files").select("name").eq("owner_id", ownerId).is("deleted_at", null);
+    q = folderId === null ? q.is("folder_id", null) : q.eq("folder_id", folderId);
+    const { data, error } = await q;
+    if (error) throw error;
+    rows = data ?? [];
+  } else {
+    let q = supabase.from("folders").select("name").eq("owner_id", ownerId).is("deleted_at", null);
+    q = folderId === null ? q.is("parent_id", null) : q.eq("parent_id", folderId);
+    const { data, error } = await q;
+    if (error) throw error;
+    rows = data ?? [];
+  }
+  const taken = new Set(rows.map((r) => r.name.toLowerCase()));
   if (!taken.has(desiredName.toLowerCase())) return desiredName;
   const dot = desiredName.lastIndexOf(".");
   const base = dot > 0 ? desiredName.slice(0, dot) : desiredName;
