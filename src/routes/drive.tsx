@@ -1137,16 +1137,15 @@ function FolderName({ id }: { id: string }) {
 
 /* ---------------- Lasso selection hook ---------------- */
 
+type LassoItem = { id: string; kind: "file" | "folder"; el: HTMLElement };
+
 function useLasso(
   containerRef: React.RefObject<HTMLDivElement | null>,
-  getItems: () => { id: string; el: HTMLElement }[],
-  onSelect: (ids: Set<string>, additive: boolean) => void,
+  getItems: () => LassoItem[],
+  onSelect: (files: Set<string>, folders: Set<string>, additive: boolean) => void,
   onBackgroundClick?: () => void,
 ) {
   const [rect, setRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  // Keep callbacks in refs so the effect can stay stable across renders —
-  // otherwise listeners get re-bound mid-drag and the drag state resets,
-  // which is what makes the lasso draw "a tiny line and stop".
   const getItemsRef = useRef(getItems);
   const onSelectRef = useRef(onSelect);
   const onBgRef = useRef(onBackgroundClick);
@@ -1195,12 +1194,16 @@ function useLasso(
       const vy1 = Math.min(e.clientY, startClientY);
       const vx2 = Math.max(e.clientX, startClientX);
       const vy2 = Math.max(e.clientY, startClientY);
-      const hit = new Set<string>();
+      const hitFiles = new Set<string>();
+      const hitFolders = new Set<string>();
       for (const it of getItemsRef.current()) {
         const r = it.el.getBoundingClientRect();
-        if (r.right >= vx1 && r.left <= vx2 && r.bottom >= vy1 && r.top <= vy2) hit.add(it.id);
+        if (r.right >= vx1 && r.left <= vx2 && r.bottom >= vy1 && r.top <= vy2) {
+          if (it.kind === "file") hitFiles.add(it.id);
+          else hitFolders.add(it.id);
+        }
       }
-      onSelectRef.current(hit, additive);
+      onSelectRef.current(hitFiles, hitFolders, additive);
     };
 
     const onUp = () => {
