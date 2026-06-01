@@ -52,7 +52,14 @@ function DrivePage() {
   const [section, setSection] = useState<Section>("my");
   const [view, setView] = useState<ViewMode>("columns");
   const [path, setPath] = useState<(string | null)[]>([null]);
-  const [selectedFile, setSelectedFile] = useState<FileRow | null>(null);
+  // Multi-selection (file ids). Last-clicked is used as anchor for shift-range.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  // Files visible in the active container, used for shift-range and lasso.
+  const [activeFiles, setActiveFiles] = useState<FileRow[]>([]);
+  // Quick Look modal (Space / double-click)
+  const [quickLook, setQuickLook] = useState<FileRow | null>(null);
+
   const [shareTarget, setShareTarget] = useState<ShareTargetInput | null>(null);
   const [folderDialog, setFolderDialog] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ kind: "file" | "folder"; id: string; name: string } | null>(null);
@@ -69,7 +76,37 @@ function DrivePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
 
-  useEffect(() => { setPath([null]); setSelectedFile(null); }, [section]);
+  const selectedFile = useMemo(
+    () => (selectedIds.size === 1 ? activeFiles.find((f) => selectedIds.has(f.id)) ?? null : null),
+    [selectedIds, activeFiles],
+  );
+
+  // Selection helpers
+  const selectOnly = (id: string) => { setSelectedIds(new Set([id])); setLastSelectedId(id); };
+  const toggleInSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setLastSelectedId(id);
+  };
+  const selectRange = (id: string) => {
+    if (!lastSelectedId || !activeFiles.length) { selectOnly(id); return; }
+    const ids = activeFiles.map((f) => f.id);
+    const a = ids.indexOf(lastSelectedId);
+    const b = ids.indexOf(id);
+    if (a < 0 || b < 0) { selectOnly(id); return; }
+    const [from, to] = a < b ? [a, b] : [b, a];
+    setSelectedIds(new Set(ids.slice(from, to + 1)));
+  };
+  const handleFileClick = (file: FileRow, e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey) toggleInSelection(file.id);
+    else if (e.shiftKey) selectRange(file.id);
+    else selectOnly(file.id);
+  };
+  const clearSelection = () => { setSelectedIds(new Set()); setLastSelectedId(null); };
+
 
   // Theme
   useEffect(() => {
