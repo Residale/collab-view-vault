@@ -9,9 +9,12 @@ import {
   ZoomIn, ZoomOut, RotateCcw, ExternalLink as ExternalIcon,
 } from "lucide-react";
 
+import { HighlightedText } from "./Highlight";
+
 export function QuickLook({
   file,
   siblings = [],
+  searchQuery,
   onNavigate,
   onClose,
   onDownload,
@@ -20,6 +23,7 @@ export function QuickLook({
 }: {
   file: FileRow | null;
   siblings?: FileRow[];
+  searchQuery?: string;
   onNavigate?: (f: FileRow) => void;
   onClose: () => void;
   onDownload: (f: FileRow) => void;
