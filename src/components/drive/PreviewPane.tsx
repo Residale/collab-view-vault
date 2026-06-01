@@ -113,38 +113,44 @@ export function PreviewPane({
 
         {/* Primary action buttons — large, prominent */}
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            size="lg"
-            onClick={() => onOpenFullscreen?.(file)}
-            className="h-11 font-medium"
-          >
-            <Maximize2 /> Open
-          </Button>
-          <Button
-            size="lg"
-            variant="secondary"
-            onClick={() => onShare(file)}
-            className="h-11 font-medium"
-          >
-            <Share2 /> Share
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            onClick={() => onDownload(file)}
-            className="h-11 font-medium"
-          >
-            <Download /> Download
-          </Button>
-          {onCopyLink && (
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => onCopyLink(file)}
-              className="h-11 font-medium"
-            >
-              <Link2 /> Copy link
-            </Button>
+          {external && linkUrl ? (
+            <>
+              <Button
+                size="lg"
+                onClick={() => window.open(linkUrl, "_blank", "noopener,noreferrer")}
+                className="h-11 font-medium col-span-2"
+              >
+                <ExternalIcon /> Open in new tab
+              </Button>
+              <Button size="lg" variant="secondary" onClick={() => onShare(file)} className="h-11 font-medium">
+                <Share2 /> Share
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => { navigator.clipboard.writeText(linkUrl); }}
+                className="h-11 font-medium"
+              >
+                <Link2 /> Copy URL
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="lg" onClick={() => onOpenFullscreen?.(file)} className="h-11 font-medium">
+                <Maximize2 /> Open
+              </Button>
+              <Button size="lg" variant="secondary" onClick={() => onShare(file)} className="h-11 font-medium">
+                <Share2 /> Share
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => onDownload(file)} className="h-11 font-medium">
+                <Download /> Download
+              </Button>
+              {onCopyLink && (
+                <Button size="lg" variant="outline" onClick={() => onCopyLink(file)} className="h-11 font-medium">
+                  <Link2 /> Copy link
+                </Button>
+              )}
+            </>
           )}
         </div>
 
