@@ -419,7 +419,9 @@ function DrivePage() {
         </header>
 
         <div className="flex-1 flex overflow-hidden">
-          {activeQuery ? (
+          {section === "trash" ? (
+            <TrashView userId={user.id} invalidate={invalidate} />
+          ) : activeQuery ? (
             <SearchResults
               query={activeQuery}
               filters={activeFilters}
@@ -427,6 +429,7 @@ function DrivePage() {
               onOpenFolder={(f) => { setActiveQuery(""); setSection("my"); setPath([null, f.id]); }}
               onClear={() => setActiveQuery("")}
             />
+
           ) : view === "columns" ? (
             <ColumnsView
               userId={user.id}
