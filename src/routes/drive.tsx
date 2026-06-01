@@ -140,24 +140,77 @@ function DrivePage() {
 
 
 
+  // Upload a flat list of files (no folder structure).
   const handleUpload = async (files: FileList | File[] | null) => {
     if (!files || !user) return;
-    const arr = Array.from(files);
+    const arr = Array.from(files).filter((f) => f.size > 0 || f.type !== "");
     if (!arr.length) return;
+    await handleUploadEntries(arr.map((f) => ({ file: f, relPath: [] })));
+  };
 
+  // Upload files preserving folder structure. relPath = directory segments
+  // relative to the current folder (excluding the filename).
+  const handleUploadEntries = async (
+    entries: { file: File; relPath: string[] }[],
+  ) => {
+    if (!user || !entries.length) return;
     const currentFolder = path[path.length - 1];
-    const id = toast.loading(`Uploading ${arr.length} file${arr.length > 1 ? "s" : ""}…`);
-    let done = 0;
-    for (const f of arr) {
+    const id = toast.loading(`Uploading ${entries.length} item${entries.length > 1 ? "s" : ""}…`);
+
+    // Create folders on-demand, caching path → folderId.
+    const folderCache = new Map<string, string | null>();
+    folderCache.set("", currentFolder);
+    const ensureFolder = async (segments: string[]): Promise<string | null> => {
+      const key = segments.join("/");
+      if (folderCache.has(key)) return folderCache.get(key)!;
+      const parent = await ensureFolder(segments.slice(0, -1));
       try {
-        await uploadFile(user.id, currentFolder, f);
+        const created = await createFolder(user.id, parent, segments[segments.length - 1]);
+        folderCache.set(key, created.id);
+        return created.id;
+      } catch (e: any) {
+        toast.error(`Folder ${segments.join("/")}: ${e.message}`);
+        folderCache.set(key, parent);
+        return parent;
+      }
+    };
+
+    let done = 0;
+    for (const { file, relPath } of entries) {
+      try {
+        const folderId = await ensureFolder(relPath);
+        await uploadFile(user.id, folderId, file);
         done++;
-        toast.loading(`Uploading… ${done}/${arr.length}`, { id });
-      } catch (e: any) { toast.error(`${f.name}: ${e.message}`); }
+        toast.loading(`Uploading… ${done}/${entries.length}`, { id });
+      } catch (e: any) {
+        toast.error(`${file.name}: ${e?.message ?? "Failed to upload"}`);
+      }
     }
-    toast.success(`Uploaded ${done}/${arr.length}`, { id });
+    toast.success(`Uploaded ${done}/${entries.length}`, { id });
     invalidate();
   };
+
+  // Walk a FileSystemEntry tree (from drag-and-drop) into a flat list.
+  const readEntries = async (entry: any, prefix: string[] = []): Promise<{ file: File; relPath: string[] }[]> => {
+    if (entry.isFile) {
+      const file: File = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      return [{ file, relPath: prefix }];
+    }
+    if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const all: any[] = [];
+      // readEntries returns max 100 at a time; loop until empty.
+      while (true) {
+        const batch: any[] = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+        if (!batch.length) break;
+        all.push(...batch);
+      }
+      const nested = await Promise.all(all.map((e) => readEntries(e, [...prefix, entry.name])));
+      return nested.flat();
+    }
+    return [];
+  };
+
 
   const onDownload = async (f: FileRow) => {
     try {
