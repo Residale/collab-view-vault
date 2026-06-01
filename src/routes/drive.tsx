@@ -346,13 +346,29 @@ function DrivePage() {
   const onDragOver = (e: React.DragEvent) => {
     if (e.dataTransfer.types.includes("Files")) e.preventDefault();
   };
-  const onDrop = (e: React.DragEvent) => {
+  const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current = 0;
     setDragOver(false);
     if (section !== "my") { toast.error("Switch to My Drive to upload"); return; }
+
+    // Prefer DataTransferItemList to preserve folder structure.
+    const items = e.dataTransfer.items;
+    if (items && items.length && typeof (items[0] as any).webkitGetAsEntry === "function") {
+      const entries: any[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const entry = (items[i] as any).webkitGetAsEntry?.();
+        if (entry) entries.push(entry);
+      }
+      if (entries.length) {
+        const collected = (await Promise.all(entries.map((en) => readEntries(en)))).flat();
+        if (collected.length) { await handleUploadEntries(collected); return; }
+      }
+    }
+    // Fallback: flat file list.
     handleUpload(e.dataTransfer.files);
   };
+
 
   const folderActions = {
     onShare: (f: FolderRow) => setShareTarget({ type: "folder", id: f.id, name: f.name, ownerId: f.owner_id }),
