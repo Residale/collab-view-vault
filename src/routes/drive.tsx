@@ -194,7 +194,12 @@ function DrivePage() {
     onStar,
   };
 
+  if (loading || !user) {
+    return <div className="min-h-screen grid place-items-center text-muted-foreground text-sm">Loading…</div>;
+  }
+
   return (
+
     <div
       className="flex h-screen bg-background text-foreground font-sans selection:bg-muted relative"
       onDragEnter={onDragEnter}
