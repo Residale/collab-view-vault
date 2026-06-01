@@ -138,9 +138,38 @@ export async function getSignedUrl(path: string, expires = 3600) {
   return getDriveSignedUrl({ data: { path, expires } });
 }
 
+// Soft-delete: mark deleted_at. Storage object kept until permanent purge.
+export async function trashFile(id: string) {
+  const { error } = await supabase.from("files")
+    .update({ deleted_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function trashFolder(id: string) {
+  const { error } = await supabase.from("folders")
+    .update({ deleted_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function restoreFile(id: string) {
+  const { error } = await supabase.from("files").update({ deleted_at: null }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function restoreFolder(id: string) {
+  const { error } = await supabase.from("folders").update({ deleted_at: null }).eq("id", id);
+  if (error) throw error;
+}
+
+// Permanent deletion (used from Trash view or auto-purge).
 export async function deleteFile(file: FileRow) {
   await supabase.storage.from("drive").remove([file.storage_path]);
   const { error } = await supabase.from("files").delete().eq("id", file.id);
+  if (error) throw error;
+}
+
+export async function deleteFolder(id: string) {
+  const { error } = await supabase.from("folders").delete().eq("id", id);
   if (error) throw error;
 }
 
@@ -160,11 +189,6 @@ export async function renameFolder(id: string, name: string) {
   if (error) throw error;
 }
 
-export async function deleteFolder(id: string) {
-  const { error } = await supabase.from("folders").delete().eq("id", id);
-  if (error) throw error;
-}
-
 export async function moveFile(id: string, folderId: string | null) {
   const { error } = await supabase.from("files").update({ folder_id: folderId }).eq("id", id);
   if (error) throw error;
@@ -175,6 +199,7 @@ export async function moveFolder(id: string, parentId: string | null) {
   const { error } = await supabase.from("folders").update({ parent_id: parentId }).eq("id", id);
   if (error) throw error;
 }
+
 
 export async function listAllFolders(ownerId: string) {
   const { data, error } = await supabase
