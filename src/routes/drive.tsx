@@ -32,6 +32,9 @@ import { CommandPalette } from "@/components/drive/CommandPalette";
 import { CheatsheetDialog } from "@/components/drive/CheatsheetDialog";
 import { SearchBar, type SearchFilters } from "@/components/drive/SearchBar";
 import { SearchResults } from "@/components/drive/SearchResults";
+import { SelectionBar } from "@/components/drive/SelectionBar";
+import { SelectionCheckbox } from "@/components/drive/SelectionCheckbox";
+import { setDragPayload, getDragPayload, isDriveDrag, isExternalFileDrag, type DragPayload } from "@/components/drive/dnd";
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
   ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent,
@@ -63,9 +66,12 @@ function DrivePage() {
   const [path, setPath] = useState<(string | null)[]>([null]);
   // Multi-selection (file ids). Last-clicked is used as anchor for shift-range.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Folders can also be selected (via checkbox or context menu in the bottom bar).
+  const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   // Files visible in the active container, used for shift-range and lasso.
   const [activeFiles, setActiveFiles] = useState<FileRow[]>([]);
+  const [activeFolders, setActiveFolders] = useState<FolderRow[]>([]);
   // Quick Look modal (Space / double-click)
   const [quickLook, setQuickLook] = useState<FileRow | null>(null);
 
@@ -121,7 +127,18 @@ function DrivePage() {
     else if (e.shiftKey) selectRange(file.id);
     else selectOnly(file.id);
   };
-  const clearSelection = () => { setSelectedIds(new Set()); setLastSelectedId(null); };
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectedFolderIds(new Set());
+    setLastSelectedId(null);
+  };
+  const toggleFolderInSelection = (id: string) => {
+    setSelectedFolderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   // Lasso selection bridge — child views dispatch a window event to avoid prop drilling.
   useEffect(() => {
@@ -331,8 +348,10 @@ function DrivePage() {
       }
       // Enter = open / download
       if (e.key === "Enter" && selectedFile) { e.preventDefault(); onDownload(selectedFile); return; }
-      // Single-key shortcuts (no modifier)
+      // Single-key shortcuts (no modifier). Skip if user is selecting text,
+      // so we never hijack standard copy/paste/selection flows.
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((window.getSelection?.()?.toString().length ?? 0) > 0) return;
       if (e.key === "?" || (e.shiftKey && e.key === "/")) { e.preventDefault(); setCheatsheetOpen(true); return; }
       if (e.key === "/") { e.preventDefault(); setPaletteOpen(true); return; }
       if (e.key.toLowerCase() === "n" && section === "my") { e.preventDefault(); setFolderDialog(true); return; }
@@ -415,6 +434,87 @@ function DrivePage() {
     onCopyLink,
     onStar,
   };
+
+  // -------- Drag & drop: move items into a folder --------
+  const buildDragPayload = (kind: "file" | "folder", id: string): DragPayload => {
+    if (kind === "file") {
+      const ids = selectedIds.has(id) ? Array.from(selectedIds) : [id];
+      return { files: ids, folders: Array.from(selectedFolderIds) };
+    }
+    const ids = selectedFolderIds.has(id) ? Array.from(selectedFolderIds) : [id];
+    return { files: Array.from(selectedIds), folders: ids };
+  };
+
+  const dropIntoFolder = async (targetFolderId: string | null, payload: DragPayload) => {
+    const fileIds = payload.files;
+    const folderIds = payload.folders.filter((id) => id !== targetFolderId);
+    if (!fileIds.length && !folderIds.length) return;
+    const total = fileIds.length + folderIds.length;
+    const tid = toast.loading(`Moving ${total} item${total > 1 ? "s" : ""}…`);
+    try {
+      await Promise.all([
+        ...fileIds.map((id) => moveFile(id, targetFolderId)),
+        ...folderIds.map((id) => moveFolder(id, targetFolderId)),
+      ]);
+      clearSelection();
+      invalidate();
+      toast.success(`Moved ${total} item${total > 1 ? "s" : ""}`, { id: tid });
+    } catch (e: any) {
+      toast.error(e.message ?? "Move failed", { id: tid });
+    }
+  };
+
+  // -------- Bottom selection bar actions --------
+  const selectionStarAll = async () => {
+    const files = activeFiles.filter((f) => selectedIds.has(f.id));
+    for (const f of files) await onStar(f);
+  };
+  const selectionDownloadAll = async () => {
+    const files = activeFiles.filter((f) => selectedIds.has(f.id));
+    for (const f of files) await onDownload(f);
+  };
+  const selectionShareSingle = () => {
+    if (selectedIds.size === 1 && selectedFolderIds.size === 0) {
+      const f = activeFiles.find((x) => selectedIds.has(x.id));
+      if (f) fileActions.onShare(f);
+    } else if (selectedFolderIds.size === 1 && selectedIds.size === 0) {
+      const f = activeFolders.find((x) => selectedFolderIds.has(x.id));
+      if (f) folderActions.onShare(f);
+    }
+  };
+  const selectionMoveAll = () => {
+    // For multi-move we reuse the MoveDialog by setting one target — keeps UX simple.
+    if (selectedIds.size === 1 && selectedFolderIds.size === 0) {
+      const f = activeFiles.find((x) => selectedIds.has(x.id));
+      if (f) fileActions.onMove(f);
+      return;
+    }
+    if (selectedFolderIds.size === 1 && selectedIds.size === 0) {
+      const f = activeFolders.find((x) => selectedFolderIds.has(x.id));
+      if (f) folderActions.onMove(f);
+      return;
+    }
+    toast.info("Drag & drop the selection into a folder to move multiple items.");
+  };
+  const selectionDeleteAll = async () => {
+    const fileTargets = activeFiles.filter((f) => selectedIds.has(f.id));
+    const folderTargets = activeFolders.filter((f) => selectedFolderIds.has(f.id));
+    const total = fileTargets.length + folderTargets.length;
+    if (!total) return;
+    const tid = toast.loading(`Moving ${total} to Trash…`);
+    try {
+      await Promise.all([
+        ...fileTargets.map((f) => trashFile(f.id)),
+        ...folderTargets.map((f) => trashFolder(f.id)),
+      ]);
+      clearSelection();
+      invalidate();
+      toast.success(`${total} item${total > 1 ? "s" : ""} moved to Trash`, { id: tid });
+    } catch (e: any) {
+      toast.error(e.message, { id: tid });
+    }
+  };
+
 
   if (loading || !user) {
     return <div className="min-h-screen grid place-items-center text-muted-foreground text-sm">Loading…</div>;
@@ -565,12 +665,46 @@ function DrivePage() {
               setPath={setPath}
               search={search}
               selectedIds={selectedIds}
+              selectedFolderIds={selectedFolderIds}
               onFileClick={handleFileClick}
               onFileOpen={(f) => setQuickLook(f)}
               onBackgroundClick={clearSelection}
               onActiveFiles={setActiveFiles}
+              onActiveFolders={setActiveFolders}
               folderActions={folderActions}
               fileActions={fileActions}
+              onToggleFolderSelected={toggleFolderInSelection}
+              onToggleFileSelected={(id) => {
+                setSelectedIds((prev) => {
+                  const n = new Set(prev);
+                  if (n.has(id)) n.delete(id); else n.add(id);
+                  return n;
+                });
+              }}
+              buildDragPayload={buildDragPayload}
+              onDropIntoFolder={dropIntoFolder}
+              onDropExternalFiles={async (parentFolderId, files) => {
+                if (section !== "my") { toast.error("Switch to My Drive to upload"); return; }
+                // Push current path so upload goes to the right column.
+                const idx = path.indexOf(parentFolderId);
+                if (idx > 0) {
+                  // already on this path — fine
+                } else if (parentFolderId !== null) {
+                  setPath((p) => (p[p.length - 1] === parentFolderId ? p : [...p, parentFolderId]));
+                }
+                const arr = Array.from(files).filter((f) => f.size > 0 || f.type !== "");
+                if (!arr.length) return;
+                const entries = arr.map((f) => ({ file: f, relPath: [] }));
+                // Upload to specific folder regardless of current path:
+                const tid = toast.loading(`Uploading ${entries.length} item${entries.length > 1 ? "s" : ""}…`);
+                let done = 0;
+                for (const { file } of entries) {
+                  try { await uploadFile(user.id, parentFolderId, file); done++; toast.loading(`Uploading… ${done}/${entries.length}`, { id: tid }); }
+                  catch (e: any) { toast.error(`${file.name}: ${e?.message ?? "Failed"}`); }
+                }
+                invalidate();
+                toast.success(`Uploaded ${done}/${entries.length}`, { id: tid });
+              }}
             />
           ) : (
             <FlatView
@@ -580,27 +714,39 @@ function DrivePage() {
               search={search}
               mode={view}
               selectedIds={selectedIds}
+              selectedFolderIds={selectedFolderIds}
               onFileClick={handleFileClick}
               onFileOpen={(f) => setQuickLook(f)}
               onOpenFolder={(f) => setPath([...path, f.id])}
               onBackgroundClick={clearSelection}
               onActiveFiles={setActiveFiles}
+              onActiveFolders={setActiveFolders}
               folderActions={folderActions}
               fileActions={fileActions}
+              onToggleFolderSelected={toggleFolderInSelection}
+              onToggleFileSelected={(id) => {
+                setSelectedIds((prev) => {
+                  const n = new Set(prev);
+                  if (n.has(id)) n.delete(id); else n.add(id);
+                  return n;
+                });
+              }}
+              buildDragPayload={buildDragPayload}
+              onDropIntoFolder={dropIntoFolder}
             />
           )}
         </div>
 
-        {/* Selection action bar */}
-        {selectedIds.size > 1 && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-surface ring-1 ring-hairline rounded-full pl-4 pr-1.5 py-1.5 shadow-pane">
-            <span className="text-xs font-medium">{selectedIds.size} selected</span>
-            <Button size="sm" variant="ghost" onClick={clearSelection} className="h-7 rounded-full">Clear</Button>
-            <Button size="sm" variant="destructive" onClick={onDeleteSelection} className="h-7 rounded-full">
-              <Trash2 /> Delete
-            </Button>
-          </div>
-        )}
+        <SelectionBar
+          fileCount={selectedIds.size}
+          folderCount={selectedFolderIds.size}
+          onClear={clearSelection}
+          onMove={selectionMoveAll}
+          onDownload={selectionDownloadAll}
+          onDelete={selectionDeleteAll}
+          onStar={selectionStarAll}
+          onShare={selectionShareSingle}
+        />
       </main>
 
       <QuickLook
@@ -987,17 +1133,29 @@ function useLasso(
 
 /* ---------------- Columns view (Finder-style) ---------------- */
 
-function ColumnsView(props: {
-  userId: string; section: Section; path: (string | null)[];
-  setPath: (p: (string | null)[]) => void;
+type SharedViewProps = {
+  userId: string;
+  section: Section;
+  path: (string | null)[];
   search: string;
   selectedIds: Set<string>;
+  selectedFolderIds: Set<string>;
   onFileClick: (f: FileRow, e: React.MouseEvent) => void;
   onFileOpen: (f: FileRow) => void;
   onBackgroundClick: () => void;
   onActiveFiles: (files: FileRow[]) => void;
+  onActiveFolders: (folders: FolderRow[]) => void;
   folderActions: FolderActions;
   fileActions: FileActions;
+  onToggleFolderSelected: (id: string) => void;
+  onToggleFileSelected: (id: string) => void;
+  buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
+  onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+};
+
+function ColumnsView(props: SharedViewProps & {
+  setPath: (p: (string | null)[]) => void;
+  onDropExternalFiles: (parentFolderId: string | null, files: FileList) => void | Promise<void>;
 }) {
   return (
     <div className="flex-1 flex overflow-x-auto thin-scroll bg-background min-w-0">
@@ -1014,22 +1172,20 @@ function ColumnsView(props: {
   );
 }
 
-function Column(props: {
-  userId: string; section: Section; parentId: string | null; depth: number; isLast: boolean;
-  path: (string | null)[]; setPath: (p: (string | null)[]) => void;
-  search: string;
-  selectedIds: Set<string>;
-  onFileClick: (f: FileRow, e: React.MouseEvent) => void;
-  onFileOpen: (f: FileRow) => void;
-  onBackgroundClick: () => void;
-  onActiveFiles: (files: FileRow[]) => void;
-  folderActions: FolderActions;
-  fileActions: FileActions;
+function Column(props: SharedViewProps & {
+  parentId: string | null;
+  depth: number;
+  isLast: boolean;
+  setPath: (p: (string | null)[]) => void;
+  onDropExternalFiles: (parentFolderId: string | null, files: FileList) => void | Promise<void>;
 }) {
   const {
     userId, section, parentId, depth, isLast, path, setPath, search,
-    selectedIds, onFileClick, onFileOpen, onBackgroundClick, onActiveFiles,
+    selectedIds, selectedFolderIds,
+    onFileClick, onFileOpen, onBackgroundClick, onActiveFiles, onActiveFolders,
     folderActions, fileActions,
+    onToggleFolderSelected, onToggleFileSelected,
+    buildDragPayload, onDropIntoFolder, onDropExternalFiles,
   } = props;
   const activeChildId = path[depth + 1] ?? null;
 
@@ -1058,10 +1214,14 @@ function Column(props: {
   const folders = (data?.folders ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
   const files = (data?.files ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
 
-  // Publish active files only from the last (deepest) column.
+  // Publish active files and folders only from the last (deepest) column.
   useEffect(() => {
-    if (isLast) onActiveFiles(files);
+    if (isLast) { onActiveFiles(files); onActiveFolders(folders); }
   }, [isLast, data]);
+
+  // Track drop hover state for this column (root drop = upload into this parent).
+  const [columnDropOver, setColumnDropOver] = useState(false);
+  const dropCounter = useRef(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -1095,7 +1255,43 @@ function Column(props: {
   }, [selectedIds]);
 
   return (
-    <div className="w-72 border-r border-hairline flex flex-col shrink-0 bg-background">
+    <div
+      className={cn(
+        "w-72 border-r border-hairline flex flex-col shrink-0 bg-background transition-colors",
+        columnDropOver && "bg-primary/5 ring-1 ring-primary/40",
+      )}
+      onDragEnter={(e) => {
+        if (!isExternalFileDrag(e) && !isDriveDrag(e)) return;
+        e.preventDefault();
+        dropCounter.current++;
+        setColumnDropOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!isExternalFileDrag(e) && !isDriveDrag(e)) return;
+        e.preventDefault();
+        dropCounter.current--;
+        if (dropCounter.current <= 0) { dropCounter.current = 0; setColumnDropOver(false); }
+      }}
+      onDragOver={(e) => {
+        if (!isExternalFileDrag(e) && !isDriveDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = isDriveDrag(e) ? "move" : "copy";
+      }}
+      onDrop={async (e) => {
+        if (isDriveDrag(e)) {
+          e.preventDefault(); e.stopPropagation();
+          dropCounter.current = 0; setColumnDropOver(false);
+          const payload = getDragPayload(e);
+          if (payload) await onDropIntoFolder(parentId, payload);
+          return;
+        }
+        if (isExternalFileDrag(e)) {
+          e.preventDefault(); e.stopPropagation();
+          dropCounter.current = 0; setColumnDropOver(false);
+          await onDropExternalFiles(parentId, e.dataTransfer.files);
+        }
+      }}
+    >
       <div className="px-3 h-8 flex items-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground border-b border-hairline/60">
         {depth === 0 ? "Root" : "Subfolder"}
       </div>
@@ -1106,26 +1302,17 @@ function Column(props: {
         {folders.length > 0 && (
           <div className="space-y-0.5 mb-3">
             {folders.map((f) => (
-              <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
-                <button
-                  data-drive-item="folder"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onBackgroundClick();
-                    setPath([...path.slice(0, depth + 1), f.id]);
-                  }}
-                  className={cn(
-                    "w-full px-2.5 py-2 text-sm rounded-md flex items-center justify-between gap-2 transition-colors text-left",
-                    activeChildId === f.id ? "bg-surface-2 ring-1 ring-hairline" : "hover:bg-surface-2/60",
-                  )}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <FolderIcon color={f.color} className="size-5" />
-                    <span className="truncate font-medium">{f.name}</span>
-                  </div>
-                  <ChevronRight className="size-3.5 text-muted-foreground/60 shrink-0" />
-                </button>
-              </FolderContextMenu>
+              <FolderRow
+                key={f.id}
+                folder={f}
+                isActive={activeChildId === f.id}
+                isSelected={selectedFolderIds.has(f.id)}
+                onOpen={() => { onBackgroundClick(); setPath([...path.slice(0, depth + 1), f.id]); }}
+                onToggleSelected={() => onToggleFolderSelected(f.id)}
+                folderActions={folderActions}
+                buildDragPayload={buildDragPayload}
+                onDropIntoFolder={onDropIntoFolder}
+              />
             ))}
           </div>
         )}
@@ -1137,22 +1324,25 @@ function Column(props: {
               const isSelected = selectedIds.has(f.id);
               return (
                 <FileContextMenu key={f.id} file={f} actions={fileActions}>
-                  <button
+                  <div
                     data-drive-item="file"
                     ref={(el) => {
                       if (el) itemRefs.current.set(f.id, el);
                       else itemRefs.current.delete(f.id);
                     }}
+                    draggable
+                    onDragStart={(e) => setDragPayload(e, buildDragPayload("file", f.id))}
                     onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
                     onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                     className={cn(
-                      "w-full px-2 py-1.5 rounded-md flex items-center gap-2.5 text-left transition-colors group",
+                      "w-full px-2 py-1.5 rounded-md flex items-center gap-2.5 text-left transition-colors group cursor-default",
                       isSelected
                         ? "bg-primary/15 ring-1 ring-primary/40"
                         : "hover:bg-surface-2/60",
                     )}
                     title={f.name}
                   >
+                    <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
                     <div className="relative size-8 rounded-md overflow-hidden ring-1 ring-hairline bg-surface-2 shrink-0">
                       <Thumbnail file={f} className="size-full" iconClassName="size-4 opacity-70" />
                       <FileTypeBadge
@@ -1174,7 +1364,7 @@ function Column(props: {
                     >
                       <Eye className="size-3" />
                     </button>
-                  </button>
+                  </div>
                 </FileContextMenu>
               );
             })}
@@ -1183,7 +1373,9 @@ function Column(props: {
 
 
         {!isLoading && folders.length === 0 && files.length === 0 && (
-          <div className="px-3 py-6 text-xs text-muted-foreground text-center">Empty</div>
+          <div className="px-3 py-6 text-xs text-muted-foreground text-center">
+            {columnDropOver ? "Drop to add here" : "Empty"}
+          </div>
         )}
 
         {/* Lasso rectangle */}
@@ -1198,25 +1390,73 @@ function Column(props: {
   );
 }
 
+function FolderRow({
+  folder, isActive, isSelected, onOpen, onToggleSelected,
+  folderActions, buildDragPayload, onDropIntoFolder,
+}: {
+  folder: FolderRow;
+  isActive: boolean;
+  isSelected: boolean;
+  onOpen: () => void;
+  onToggleSelected: () => void;
+  folderActions: FolderActions;
+  buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
+  onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+}) {
+  const [over, setOver] = useState(false);
+  return (
+    <FolderContextMenu folder={folder} actions={folderActions}>
+      <div
+        data-drive-item="folder"
+        draggable
+        onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
+        onDragEnter={(e) => { if (isDriveDrag(e) || isExternalFileDrag(e)) { e.preventDefault(); e.stopPropagation(); setOver(true); } }}
+        onDragOver={(e) => { if (isDriveDrag(e) || isExternalFileDrag(e)) { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = isDriveDrag(e) ? "move" : "copy"; } }}
+        onDragLeave={() => setOver(false)}
+        onDrop={async (e) => {
+          if (!isDriveDrag(e)) return;
+          e.preventDefault(); e.stopPropagation();
+          setOver(false);
+          const payload = getDragPayload(e);
+          if (payload) await onDropIntoFolder(folder.id, payload);
+        }}
+        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        className={cn(
+          "w-full px-2.5 py-2 text-sm rounded-md flex items-center justify-between gap-2 transition-colors text-left group cursor-pointer",
+          over ? "bg-primary/15 ring-1 ring-primary/50"
+            : isActive ? "bg-surface-2 ring-1 ring-hairline"
+            : isSelected ? "bg-primary/10 ring-1 ring-primary/30"
+            : "hover:bg-surface-2/60",
+        )}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <SelectionCheckbox checked={isSelected} onToggle={onToggleSelected} />
+          <FolderIcon color={folder.color} className="size-5" />
+          <span className="truncate font-medium">{folder.name}</span>
+        </div>
+        <ChevronRight className="size-3.5 text-muted-foreground/60 shrink-0" />
+      </div>
+    </FolderContextMenu>
+  );
+}
+
+
 /* ---------------- List / Grid view ---------------- */
 
-function FlatView(props: {
-  userId: string; section: Section; path: (string | null)[]; search: string;
+function FlatView(props: SharedViewProps & {
   mode: "list" | "grid";
-  selectedIds: Set<string>;
-  onFileClick: (f: FileRow, e: React.MouseEvent) => void;
-  onFileOpen: (f: FileRow) => void;
   onOpenFolder: (f: FolderRow) => void;
-  onBackgroundClick: () => void;
-  onActiveFiles: (files: FileRow[]) => void;
-  folderActions: FolderActions;
-  fileActions: FileActions;
 }) {
   const {
-    userId, section, path, search, mode, selectedIds,
-    onFileClick, onFileOpen, onOpenFolder, onBackgroundClick, onActiveFiles,
+    userId, section, path, search, mode,
+    selectedIds, selectedFolderIds,
+    onFileClick, onFileOpen, onOpenFolder, onBackgroundClick,
+    onActiveFiles, onActiveFolders,
     folderActions, fileActions,
+    onToggleFolderSelected, onToggleFileSelected,
+    buildDragPayload, onDropIntoFolder,
   } = props;
+  // onActiveFolders published below alongside files; other props used in rows.
   const parentId = path[path.length - 1];
 
   const { data, isLoading } = useQuery({
@@ -1240,7 +1480,7 @@ function FlatView(props: {
   const folders = (data?.folders ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
   const files = (data?.files ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
 
-  useEffect(() => { onActiveFiles(files); }, [data]);
+  useEffect(() => { onActiveFiles(files); onActiveFolders(folders); }, [data]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -1273,41 +1513,40 @@ function FlatView(props: {
           <div className="grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-9 items-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground sticky top-0 bg-background z-10 border-b border-hairline">
             <span>Name</span><span>Size</span><span>Modified</span><span></span>
           </div>
-          {folders.map((f) => (
-            <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
-              <button
-                data-drive-item="folder"
-                onDoubleClick={() => onOpenFolder(f)}
-                onClick={() => onOpenFolder(f)}
-                className="w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm hover:bg-surface-2/60 group"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <FolderIcon color={f.color} className="size-5" />
-                  <span className="truncate font-medium">{f.name}</span>
-                </div>
-                <span className="text-muted-foreground">—</span>
-                <span className="text-muted-foreground">{new Date(f.updated_at).toLocaleDateString()}</span>
-                <span className="opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); folderActions.onShare(f); }}>
-                  <Share2 className="size-3.5 text-muted-foreground hover:text-foreground" />
-                </span>
-              </button>
-            </FolderContextMenu>
-          ))}
+          {folders.map((f) => {
+            const isSel = selectedFolderIds.has(f.id);
+            return (
+              <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
+                <FlatFolderRow
+                  folder={f}
+                  isSelected={isSel}
+                  onOpen={() => onOpenFolder(f)}
+                  onToggleSelected={() => onToggleFolderSelected(f.id)}
+                  onShare={() => folderActions.onShare(f)}
+                  buildDragPayload={buildDragPayload}
+                  onDropIntoFolder={onDropIntoFolder}
+                />
+              </FolderContextMenu>
+            );
+          })}
           {files.map((f) => {
             const isSelected = selectedIds.has(f.id);
             return (
               <FileContextMenu key={f.id} file={f} actions={fileActions}>
-                <button
+                <div
                   data-drive-item="file"
                   ref={(el) => { if (el) itemRefs.current.set(f.id, el); else itemRefs.current.delete(f.id); }}
+                  draggable
+                  onDragStart={(e) => setDragPayload(e, buildDragPayload("file", f.id))}
                   onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
                   onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                   className={cn(
-                    "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm",
+                    "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm cursor-default group",
                     isSelected ? "bg-primary/10 ring-1 ring-primary/40" : "hover:bg-surface-2/60",
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
+                    <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
                     <div className="relative size-9 rounded-md overflow-hidden ring-1 ring-hairline bg-surface-2 shrink-0">
                       <Thumbnail file={f} className="size-full" iconClassName="size-4 opacity-70" />
                       <FileTypeBadge
@@ -1322,7 +1561,7 @@ function FlatView(props: {
                   <span className="text-muted-foreground">{formatBytes(f.size)}</span>
                   <span className="text-muted-foreground">{new Date(f.updated_at).toLocaleDateString()}</span>
                   <span></span>
-                </button>
+                </div>
               </FileContextMenu>
             );
           })}
@@ -1338,19 +1577,21 @@ function FlatView(props: {
             <div>
               <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-3">Folders</div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
-                {folders.map((f) => (
-                  <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
-                    <button
-                      data-drive-item="folder"
-                      onDoubleClick={() => onOpenFolder(f)}
-                      onClick={() => onOpenFolder(f)}
-                      className="h-12 rounded-lg ring-1 ring-hairline bg-surface hover:bg-surface-2 transition-colors px-3 flex items-center gap-3 text-left"
-                    >
-                      <FolderIcon color={f.color} className="size-6" />
-                      <span className="text-sm font-medium truncate">{f.name}</span>
-                    </button>
-                  </FolderContextMenu>
-                ))}
+                {folders.map((f) => {
+                  const isSel = selectedFolderIds.has(f.id);
+                  return (
+                    <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
+                      <GridFolderCard
+                        folder={f}
+                        isSelected={isSel}
+                        onOpen={() => onOpenFolder(f)}
+                        onToggleSelected={() => onToggleFolderSelected(f.id)}
+                        buildDragPayload={buildDragPayload}
+                        onDropIntoFolder={onDropIntoFolder}
+                      />
+                    </FolderContextMenu>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1362,13 +1603,15 @@ function FlatView(props: {
                   const isSelected = selectedIds.has(f.id);
                   return (
                     <FileContextMenu key={f.id} file={f} actions={fileActions}>
-                      <button
+                      <div
                         data-drive-item="file"
                         ref={(el) => { if (el) itemRefs.current.set(f.id, el); else itemRefs.current.delete(f.id); }}
+                        draggable
+                        onDragStart={(e) => setDragPayload(e, buildDragPayload("file", f.id))}
                         onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
                         onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                         className={cn(
-                          "rounded-lg ring-1 transition-all overflow-hidden flex flex-col text-left bg-surface group",
+                          "rounded-lg ring-1 transition-all overflow-hidden flex flex-col text-left bg-surface group cursor-default relative",
                           isSelected ? "ring-2 ring-primary shadow-pane" : "ring-hairline hover:ring-foreground/20 hover:shadow-architect",
                         )}
                       >
@@ -1379,20 +1622,23 @@ function FlatView(props: {
                             mime={f.mime_type}
                             className="absolute top-2 left-2"
                           />
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
-                            className="absolute top-2 right-2 size-7 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 ring-1 ring-hairline hover:bg-background"
-                            title="Quick Look (Space)"
-                          >
-                            <Eye className="size-3.5" />
-                          </button>
+                          <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                            <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
+                              className="size-7 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 ring-1 ring-hairline hover:bg-background"
+                              title="Quick Look (Space)"
+                            >
+                              <Eye className="size-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         <div className="p-2.5 border-t border-hairline bg-surface">
                           <div className="text-sm font-medium truncate">{f.name}</div>
                           <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
                         </div>
-                      </button>
+                      </div>
                     </FileContextMenu>
                   );
                 })}
@@ -1414,6 +1660,114 @@ function FlatView(props: {
     </div>
   );
 }
+
+function useFolderDropTarget(
+  folderId: string,
+  onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>,
+) {
+  const [over, setOver] = useState(false);
+  return {
+    over,
+    handlers: {
+      onDragEnter: (e: React.DragEvent) => {
+        if (!isDriveDrag(e) && !isExternalFileDrag(e)) return;
+        e.preventDefault(); e.stopPropagation();
+        setOver(true);
+      },
+      onDragOver: (e: React.DragEvent) => {
+        if (!isDriveDrag(e) && !isExternalFileDrag(e)) return;
+        e.preventDefault(); e.stopPropagation();
+        e.dataTransfer.dropEffect = isDriveDrag(e) ? "move" : "copy";
+      },
+      onDragLeave: () => setOver(false),
+      onDrop: async (e: React.DragEvent) => {
+        if (!isDriveDrag(e)) return;
+        e.preventDefault(); e.stopPropagation();
+        setOver(false);
+        const payload = getDragPayload(e);
+        if (payload) await onDropIntoFolder(folderId, payload);
+      },
+    },
+  };
+}
+
+function FlatFolderRow({
+  folder, isSelected, onOpen, onToggleSelected, onShare,
+  buildDragPayload, onDropIntoFolder,
+}: {
+  folder: FolderRow;
+  isSelected: boolean;
+  onOpen: () => void;
+  onToggleSelected: () => void;
+  onShare: () => void;
+  buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
+  onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+}) {
+  const drop = useFolderDropTarget(folder.id, onDropIntoFolder);
+  return (
+    <div
+      data-drive-item="folder"
+      draggable
+      onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
+      {...drop.handlers}
+      onDoubleClick={onOpen}
+      onClick={onOpen}
+      className={cn(
+        "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm group cursor-pointer transition-colors",
+        drop.over ? "bg-primary/15 ring-1 ring-primary/50"
+          : isSelected ? "bg-primary/10 ring-1 ring-primary/30"
+          : "hover:bg-surface-2/60",
+      )}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <SelectionCheckbox checked={isSelected} onToggle={onToggleSelected} />
+        <FolderIcon color={folder.color} className="size-5" />
+        <span className="truncate font-medium">{folder.name}</span>
+      </div>
+      <span className="text-muted-foreground">—</span>
+      <span className="text-muted-foreground">{new Date(folder.updated_at).toLocaleDateString()}</span>
+      <span className="opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); onShare(); }}>
+        <Share2 className="size-3.5 text-muted-foreground hover:text-foreground" />
+      </span>
+    </div>
+  );
+}
+
+function GridFolderCard({
+  folder, isSelected, onOpen, onToggleSelected,
+  buildDragPayload, onDropIntoFolder,
+}: {
+  folder: FolderRow;
+  isSelected: boolean;
+  onOpen: () => void;
+  onToggleSelected: () => void;
+  buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
+  onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+}) {
+  const drop = useFolderDropTarget(folder.id, onDropIntoFolder);
+  return (
+    <div
+      data-drive-item="folder"
+      draggable
+      onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
+      {...drop.handlers}
+      onDoubleClick={onOpen}
+      onClick={onOpen}
+      className={cn(
+        "h-12 rounded-lg ring-1 bg-surface transition-colors px-3 flex items-center gap-3 text-left cursor-pointer group",
+        drop.over ? "ring-2 ring-primary bg-primary/10"
+          : isSelected ? "ring-2 ring-primary/60"
+          : "ring-hairline hover:bg-surface-2",
+      )}
+    >
+      <SelectionCheckbox checked={isSelected} onToggle={onToggleSelected} />
+      <FolderIcon color={folder.color} className="size-6" />
+      <span className="text-sm font-medium truncate flex-1">{folder.name}</span>
+    </div>
+  );
+}
+
+
 
 /* ---------------- Trash view ---------------- */
 
