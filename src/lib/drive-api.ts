@@ -203,7 +203,7 @@ export async function moveFolder(id: string, parentId: string | null) {
 
 export async function listAllFolders(ownerId: string) {
   const { data, error } = await supabase
-    .from("folders").select("*").eq("owner_id", ownerId).order("name");
+    .from("folders").select("*").eq("owner_id", ownerId).is("deleted_at", null).order("name");
   if (error) throw error;
   return (data ?? []) as FolderRow[];
 }
@@ -211,14 +211,15 @@ export async function listAllFolders(ownerId: string) {
 export async function searchAll(ownerId: string, query: string) {
   const q = `%${query}%`;
   const [files, folders] = await Promise.all([
-    supabase.from("files").select("*").eq("owner_id", ownerId).ilike("name", q).limit(20),
-    supabase.from("folders").select("*").eq("owner_id", ownerId).ilike("name", q).limit(20),
+    supabase.from("files").select("*").eq("owner_id", ownerId).is("deleted_at", null).ilike("name", q).limit(20),
+    supabase.from("folders").select("*").eq("owner_id", ownerId).is("deleted_at", null).ilike("name", q).limit(20),
   ]);
   return {
     files: (files.data ?? []) as FileRow[],
     folders: (folders.data ?? []) as FolderRow[],
   };
 }
+
 
 export async function searchUsersByEmail(query: string) {
   const { data, error } = await supabase
