@@ -47,6 +47,27 @@ export function QuickLook({
     return () => { cancelled = true; };
   }, [url, isText]);
 
+  const { prev, next } = useMemo(() => {
+    if (!file || siblings.length < 2) return { prev: null, next: null };
+    const idx = siblings.findIndex((s) => s.id === file.id);
+    if (idx === -1) return { prev: null, next: null };
+    return {
+      prev: siblings[(idx - 1 + siblings.length) % siblings.length],
+      next: siblings[(idx + 1) % siblings.length],
+    };
+  }, [file?.id, siblings]);
+
+  useEffect(() => {
+    if (!file || !onNavigate) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft" && prev) { e.preventDefault(); onNavigate!(prev); }
+      else if (e.key === "ArrowRight" && next) { e.preventDefault(); onNavigate!(next); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [file?.id, prev, next, onNavigate]);
+
+
   return (
     <Dialog open={!!file} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent
