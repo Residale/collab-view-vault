@@ -841,6 +841,12 @@ function DrivePage() {
         }}
       />
 
+      <AddLinkDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        onSubmit={async (url, name) => { await handleAddLink(url, name); setLinkDialogOpen(false); }}
+      />
+
       <RenameDialog
         open={!!renameTarget}
         onOpenChange={(v) => !v && setRenameTarget(null)}
