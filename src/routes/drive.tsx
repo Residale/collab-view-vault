@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Thumbnail } from "@/components/drive/Thumbnail";
+import { FileTypeBadge, FileIcon } from "@/components/drive/FileIcon";
 import { QuickLook } from "@/components/drive/QuickLook";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
@@ -1017,11 +1018,12 @@ function Column(props: {
                     )}
                     title={f.name}
                   >
-                    <Thumbnail
-                      file={f}
-                      className="size-7 rounded ring-1 ring-hairline shrink-0 bg-surface-2"
-                      iconClassName="size-3.5"
+                    <FileIcon
+                      name={f.name}
+                      mime={f.mime_type}
+                      className="size-7 rounded-md"
                     />
+
                     <div className="min-w-0 flex-1">
                       <div className="text-[13px] font-medium truncate leading-tight">{f.name}</div>
                       <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
@@ -1167,7 +1169,7 @@ function FlatView(props: {
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <Thumbnail file={f} className="size-8 rounded ring-1 ring-hairline shrink-0" iconClassName="size-4" />
+                    <FileIcon name={f.name} mime={f.mime_type} className="size-8 rounded-md" />
                     <span className="truncate font-medium">{f.name}</span>
                   </div>
                   <span className="text-muted-foreground">{formatBytes(f.size)}</span>
@@ -1225,6 +1227,11 @@ function FlatView(props: {
                       >
                         <div className="aspect-square w-full bg-surface-2 relative overflow-hidden">
                           <Thumbnail file={f} className="size-full" iconClassName="size-10 opacity-70" />
+                          <FileTypeBadge
+                            name={f.name}
+                            mime={f.mime_type}
+                            className="absolute top-2 left-2"
+                          />
                           <button
                             onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                             className="absolute top-2 right-2 size-7 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 ring-1 ring-hairline hover:bg-background"
@@ -1233,6 +1240,7 @@ function FlatView(props: {
                             <Eye className="size-3.5" />
                           </button>
                         </div>
+
                         <div className="p-2.5 border-t border-hairline bg-surface">
                           <div className="text-sm font-medium truncate">{f.name}</div>
                           <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
@@ -1362,7 +1370,7 @@ function TrashView({ userId, invalidate }: { userId: string; invalidate: () => v
           {files.map((f) => (
             <div key={f.id} className="grid grid-cols-[1fr_120px_160px_120px] gap-4 px-6 h-12 items-center text-sm hover:bg-surface-2/40">
               <div className="flex items-center gap-3 min-w-0">
-                <Thumbnail file={f} className="size-8 rounded ring-1 ring-hairline shrink-0" iconClassName="size-4" />
+                <FileIcon name={f.name} mime={f.mime_type} className="size-8 rounded-md" />
                 <span className="truncate font-medium">{f.name}</span>
               </div>
               <span className="text-muted-foreground">{formatBytes(f.size)}</span>
