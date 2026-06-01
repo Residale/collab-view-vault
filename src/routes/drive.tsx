@@ -1480,7 +1480,7 @@ function FlatView(props: SharedViewProps & {
   const folders = (data?.folders ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
   const files = (data?.files ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
 
-  useEffect(() => { onActiveFiles(files); }, [data]);
+  useEffect(() => { onActiveFiles(files); onActiveFolders(folders); }, [data]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
