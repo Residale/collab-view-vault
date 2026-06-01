@@ -29,20 +29,20 @@ export function Thumbnail({
   iconClassName?: string;
 }) {
   const kind = fileKind(file.mime_type, file.name);
-  const wantsImage = kind === "image" || kind === "video";
+  const wantsPreview = kind === "image" || kind === "video" || kind === "pdf";
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (!wantsImage) return;
+    if (!wantsPreview) return;
     let cancelled = false;
     cachedSignedUrl(file.storage_path)
       .then((u) => { if (!cancelled) setUrl(u); })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
-  }, [file.storage_path, wantsImage]);
+  }, [file.storage_path, wantsPreview]);
 
-  if (wantsImage && !failed) {
+  if (wantsPreview && !failed) {
     return (
       <div className={cn("relative overflow-hidden bg-surface-2", className)}>
         {kind === "image" && url && (
@@ -63,6 +63,18 @@ export function Thumbnail({
             onError={() => setFailed(true)}
             className="size-full object-cover"
           />
+        )}
+        {kind === "pdf" && url && (
+          <object
+            data={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+            type="application/pdf"
+            className="size-full pointer-events-none"
+            aria-label={file.name}
+          >
+            <div className="size-full grid place-items-center">
+              <FileIcon name={file.name} mime={file.mime_type} className={iconClassName} />
+            </div>
+          </object>
         )}
         {!url && (
           <div className="size-full grid place-items-center">
