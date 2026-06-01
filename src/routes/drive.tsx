@@ -1781,6 +1781,7 @@ function FlatView(props: SharedViewProps & {
               <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
                 {files.map((f) => {
                   const isSelected = selectedIds.has(f.id);
+                  const isPreview = previewFileId === f.id;
                   return (
                     <FileContextMenu key={f.id} file={f} actions={fileActions}>
                       <div
@@ -1792,7 +1793,7 @@ function FlatView(props: SharedViewProps & {
                         onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                         className={cn(
                           "rounded-lg ring-1 transition-all overflow-hidden flex flex-col text-left bg-surface group cursor-default relative",
-                          isSelected ? "ring-2 ring-primary shadow-pane" : "ring-hairline hover:ring-foreground/20 hover:shadow-architect",
+                          isSelected ? "ring-2 ring-primary shadow-pane" : isPreview ? "ring-2 ring-primary/70 shadow-pane" : "ring-hairline hover:ring-foreground/20 hover:shadow-architect",
                         )}
                       >
                         <div className="aspect-square w-full bg-surface-2 relative overflow-hidden">
