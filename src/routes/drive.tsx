@@ -1381,35 +1381,37 @@ function Column(props: SharedViewProps & {
   const dropCounter = useRef(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const lassoBaseRef = useRef<Set<string>>(new Set());
+  const itemRefs = useRef<Map<string, { el: HTMLElement; kind: "file" | "folder" }>>(new Map());
+  const lassoBaseFiles = useRef<Set<string>>(new Set());
+  const lassoBaseFolders = useRef<Set<string>>(new Set());
 
   const lassoRect = useLasso(
     scrollRef,
-    () => Array.from(itemRefs.current.entries()).map(([id, el]) => ({ id, el })),
-    (hit, additive) => {
+    () => Array.from(itemRefs.current.entries()).map(([id, v]) => ({ id, kind: v.kind, el: v.el })),
+    (hitFiles, hitFolders, additive) => {
       if (!isLast) return;
-      if (additive) {
-        const merged = new Set(lassoBaseRef.current);
-        hit.forEach((id) => merged.add(id));
-        // Apply: call onFileClick with a synthetic? Simpler: rebuild via parent setter — not available here.
-        // We approximate by selecting each via onFileClick with meta.
-        // Instead, send a custom event up through window:
-        window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(merged) } }));
-      } else {
-        window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(hit) } }));
-      }
+      const mergedFiles = additive
+        ? new Set([...lassoBaseFiles.current, ...hitFiles])
+        : hitFiles;
+      const mergedFolders = additive
+        ? new Set([...lassoBaseFolders.current, ...hitFolders])
+        : hitFolders;
+      window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(mergedFiles) } }));
+      window.dispatchEvent(new CustomEvent("drive-lasso-set-folders", { detail: { ids: Array.from(mergedFolders) } }));
     },
     () => { if (isLast) onBackgroundClick(); },
   );
 
   // Capture base selection at lasso start
   useEffect(() => {
-    const onDown = () => { lassoBaseRef.current = new Set(selectedIds); };
+    const onDown = () => {
+      lassoBaseFiles.current = new Set(selectedIds);
+      lassoBaseFolders.current = new Set(selectedFolderIds);
+    };
     const el = scrollRef.current;
     el?.addEventListener("mousedown", onDown);
     return () => el?.removeEventListener("mousedown", onDown);
-  }, [selectedIds]);
+  }, [selectedIds, selectedFolderIds]);
 
   return (
     <div
