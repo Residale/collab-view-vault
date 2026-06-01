@@ -780,6 +780,7 @@ function DrivePage() {
               mode={view}
               selectedIds={selectedIds}
               selectedFolderIds={selectedFolderIds}
+              previewFileId={previewFile?.id ?? null}
               onFileClick={handleFileClick}
               onFileOpen={(f) => setQuickLook(f)}
               onOpenFolder={(f) => setPath([...path, f.id])}
