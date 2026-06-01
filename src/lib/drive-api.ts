@@ -115,6 +115,8 @@ export async function uploadFile(userId: string, folderId: string | null, file: 
     size: file.size,
   }).select().single();
   if (error) throw error;
+  // Fire-and-forget text indexing (PDF/DOCX/text/code)
+  indexFile({ data: { fileId: data.id } }).catch((e) => console.warn("indexFile failed", e));
   return data as FileRow;
 }
 
