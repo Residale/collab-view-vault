@@ -759,6 +759,8 @@ function DrivePage() {
 
       <QuickLook
         file={quickLook}
+        siblings={activeFiles}
+        onNavigate={(f) => setQuickLook(f)}
         onClose={() => setQuickLook(null)}
         onDownload={onDownload}
         onShare={fileActions.onShare}
