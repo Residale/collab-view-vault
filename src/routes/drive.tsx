@@ -342,7 +342,7 @@ function DrivePage() {
         return;
       }
       if (e.key.toLowerCase() === "s" && selectedFile) {
-        e.preventDefault(); onToggleStar(selectedFile); return;
+        e.preventDefault(); onStar(selectedFile); return;
       }
     };
     window.addEventListener("keydown", onKey);
