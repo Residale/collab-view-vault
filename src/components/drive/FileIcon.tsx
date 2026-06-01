@@ -56,8 +56,8 @@ export function FileIcon({ name, mime, className }: { name: string; mime: string
  * identifiable at a glance regardless of preview content.
  */
 export function FileTypeBadge({
-  name, mime, className, withLabel = false,
-}: { name: string; mime: string | null; className?: string; withLabel?: boolean }) {
+  name, mime, className, iconClassName, withLabel = false,
+}: { name: string; mime: string | null; className?: string; iconClassName?: string; withLabel?: boolean }) {
   const s = getFileStyle(name, mime);
   const Icon = s.Icon;
   return (
@@ -70,7 +70,7 @@ export function FileTypeBadge({
       )}
       title={s.label}
     >
-      <Icon className="size-3.5" />
+      <Icon className={cn("size-3.5", iconClassName)} />
       {withLabel && <span className="text-[9px] font-semibold tracking-wide">{s.label}</span>}
     </div>
   );
