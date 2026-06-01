@@ -73,6 +73,7 @@ function DrivePage() {
   const [renameTarget, setRenameTarget] = useState<{ kind: "file" | "folder"; id: string; name: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ kind: "file" | "folder"; id: string; name: string; currentParent: string | null } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
   const [search, setSearch] = useState("");
   // Full-text search (header search bar) — when active, replaces main content with results.
   const [activeQuery, setActiveQuery] = useState<string>("");
