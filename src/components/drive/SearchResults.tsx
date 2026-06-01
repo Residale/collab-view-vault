@@ -73,12 +73,32 @@ export function SearchResults({
           </h1>
           <ActiveChips filters={filters} />
         </div>
-        <button
-          onClick={onClear}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <X className="size-3.5" /> Clear search
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              const name = window.prompt("Name this smart folder:", query || "Smart folder");
+              if (!name?.trim()) return;
+              try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+                await createSavedSearch(user.id, name.trim(), query, filters);
+                qc.invalidateQueries({ queryKey: ["saved-searches", user.id] });
+                toast.success("Saved to sidebar");
+              } catch (e: any) {
+                toast.error(e.message);
+              }
+            }}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Bookmark className="size-3.5" /> Save search
+          </button>
+          <button
+            onClick={onClear}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-3.5" /> Clear search
+          </button>
+        </div>
       </div>
 
       {data && data.folders.length > 0 && (
