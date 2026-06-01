@@ -24,6 +24,7 @@ import { Thumbnail } from "@/components/drive/Thumbnail";
 import { FileTypeBadge, FileIcon } from "@/components/drive/FileIcon";
 import { FolderIcon, FOLDER_PALETTE, DEFAULT_FOLDER_COLOR } from "@/components/drive/FolderIcon";
 import { QuickLook } from "@/components/drive/QuickLook";
+import { PreviewPane } from "@/components/drive/PreviewPane";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
 import { RenameDialog } from "@/components/drive/RenameDialog";
