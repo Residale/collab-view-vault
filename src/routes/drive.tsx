@@ -29,6 +29,7 @@ import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
 import { RenameDialog } from "@/components/drive/RenameDialog";
 import { MoveDialog } from "@/components/drive/MoveDialog";
 import { CommandPalette } from "@/components/drive/CommandPalette";
+import { CheatsheetDialog } from "@/components/drive/CheatsheetDialog";
 import { SearchBar, type SearchFilters } from "@/components/drive/SearchBar";
 import { SearchResults } from "@/components/drive/SearchResults";
 import {
@@ -73,6 +74,7 @@ function DrivePage() {
   const [renameTarget, setRenameTarget] = useState<{ kind: "file" | "folder"; id: string; name: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ kind: "file" | "folder"; id: string; name: string; currentParent: string | null } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
   const [search, setSearch] = useState("");
   // Full-text search (header search bar) — when active, replaces main content with results.
   const [activeQuery, setActiveQuery] = useState<string>("");
@@ -328,11 +330,25 @@ function DrivePage() {
         e.preventDefault(); setQuickLook(selectedFile); return;
       }
       // Enter = open / download
-      if (e.key === "Enter" && selectedFile) { e.preventDefault(); onDownload(selectedFile); }
+      if (e.key === "Enter" && selectedFile) { e.preventDefault(); onDownload(selectedFile); return; }
+      // Single-key shortcuts (no modifier)
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "?" || (e.shiftKey && e.key === "/")) { e.preventDefault(); setCheatsheetOpen(true); return; }
+      if (e.key === "/") { e.preventDefault(); setPaletteOpen(true); return; }
+      if (e.key.toLowerCase() === "n" && section === "my") { e.preventDefault(); setFolderDialog(true); return; }
+      if (e.key.toLowerCase() === "u" && section === "my") { e.preventDefault(); fileInputRef.current?.click(); return; }
+      if (e.key.toLowerCase() === "r" && selectedFile) {
+        e.preventDefault();
+        setRenameTarget({ kind: "file", id: selectedFile.id, name: selectedFile.name });
+        return;
+      }
+      if (e.key.toLowerCase() === "s" && selectedFile) {
+        e.preventDefault(); onStar(selectedFile); return;
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedFile, selectedIds, quickLook, activeFiles]);
+  }, [selectedFile, selectedIds, quickLook, activeFiles, section]);
 
   // Drag & drop
   const onDragEnter = (e: React.DragEvent) => {
@@ -657,8 +673,11 @@ function DrivePage() {
           { id: "recent", label: "Go to Recent", icon: <Clock className="size-4" />, onSelect: () => setSection("recent") },
           { id: "starred", label: "Go to Starred", icon: <Star className="size-4" />, onSelect: () => setSection("starred") },
           { id: "theme", label: dark ? "Switch to light mode" : "Switch to dark mode", icon: dark ? <Sun className="size-4" /> : <Moon className="size-4" />, onSelect: () => setDark((v) => !v), keywords: "theme dark light" },
+          { id: "help", label: "Keyboard shortcuts", icon: <Search className="size-4" />, onSelect: () => setCheatsheetOpen(true), keywords: "help shortcuts cheatsheet" },
         ]}
       />
+
+      <CheatsheetDialog open={cheatsheetOpen} onOpenChange={setCheatsheetOpen} />
     </div>
   );
 }
