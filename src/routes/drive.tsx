@@ -807,6 +807,12 @@ function DrivePage() {
         onOpenChange={(v) => !v && setRenameTarget(null)}
         initial={renameTarget?.name ?? ""}
         title={renameTarget?.kind === "folder" ? "Rename folder" : "Rename file"}
+        lockExtension={renameTarget?.kind === "file"}
+        existingNames={
+          renameTarget?.kind === "folder"
+            ? activeFolders.map((f) => f.name)
+            : activeFiles.map((f) => f.name)
+        }
         onSubmit={async (name) => {
           if (!renameTarget) return;
           try {
