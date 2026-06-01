@@ -3,7 +3,8 @@ import { searchDrive } from "@/lib/drive-search.functions";
 import type { SearchFilters } from "./SearchBar";
 import { FileIcon } from "./FileIcon";
 import { Thumbnail } from "./Thumbnail";
-import { Folder, Star, X } from "lucide-react";
+import { Star, X } from "lucide-react";
+import { FolderIcon } from "@/components/drive/FolderIcon";
 import { formatBytes, type FileRow, type FolderRow } from "@/lib/drive-api";
 import { cn } from "@/lib/utils";
 
@@ -87,7 +88,7 @@ export function SearchResults({
                 onClick={() => onOpenFolder(f as FolderRow)}
                 className="flex items-center gap-3 p-3 rounded-lg bg-surface-2 hover:bg-accent text-left ring-1 ring-hairline transition-colors"
               >
-                <Folder className="size-5 text-muted-foreground shrink-0" />
+                <FolderIcon color={(f as any).color} className="size-5" />
                 <span className="truncate text-sm">{f.name}</span>
               </button>
             ))}

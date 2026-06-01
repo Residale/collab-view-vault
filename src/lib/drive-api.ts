@@ -7,6 +7,7 @@ export type FolderRow = {
   owner_id: string;
   parent_id: string | null;
   name: string;
+  color?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
@@ -197,6 +198,11 @@ export async function renameFile(id: string, name: string) {
 
 export async function renameFolder(id: string, name: string) {
   const { error } = await supabase.from("folders").update({ name }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setFolderColor(id: string, color: string | null) {
+  const { error } = await supabase.from("folders").update({ color }).eq("id", id);
   if (error) throw error;
 }
 

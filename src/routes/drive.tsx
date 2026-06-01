@@ -6,13 +6,14 @@ import {
   ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
   Download, Pencil, Trash2, Move, Link2, Sun, Moon, Eye, RotateCcw, X,
+  Palette, Check,
 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
 import {
   createFolder, deleteFile, deleteFolder, getSignedUrl, listFiles, listFolders, listRecent,
   listSharedByMe, listSharedWithMe, listStarred, listTrash, moveFile, moveFolder, renameFile, renameFolder,
-  restoreFile, restoreFolder, toggleStar, trashFile, trashFolder, uploadFile,
+  restoreFile, restoreFolder, setFolderColor, toggleStar, trashFile, trashFolder, uploadFile,
   type FileRow, type FolderRow, type Section, formatBytes,
 } from "@/lib/drive-api";
 
@@ -21,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Thumbnail } from "@/components/drive/Thumbnail";
 import { FileTypeBadge, FileIcon } from "@/components/drive/FileIcon";
+import { FolderIcon, FOLDER_PALETTE, DEFAULT_FOLDER_COLOR } from "@/components/drive/FolderIcon";
 import { QuickLook } from "@/components/drive/QuickLook";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
@@ -31,6 +33,7 @@ import { SearchBar, type SearchFilters } from "@/components/drive/SearchBar";
 import { SearchResults } from "@/components/drive/SearchResults";
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
+  ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent,
 } from "@/components/ui/context-menu";
 
 export const Route = createFileRoute("/drive")({
@@ -371,11 +374,21 @@ function DrivePage() {
   };
 
 
+  const onColorFolder = async (f: FolderRow, color: string | null) => {
+    try {
+      await setFolderColor(f.id, color);
+      invalidate();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
   const folderActions = {
     onShare: (f: FolderRow) => setShareTarget({ type: "folder", id: f.id, name: f.name, ownerId: f.owner_id }),
     onRename: (f: FolderRow) => setRenameTarget({ kind: "folder", id: f.id, name: f.name }),
     onMove: (f: FolderRow) => setMoveTarget({ kind: "folder", id: f.id, name: f.name, currentParent: f.parent_id }),
     onDelete: onDeleteFolder,
+    onColor: onColorFolder,
   };
   const fileActions = {
     onShare: (f: FileRow) => setShareTarget({ type: "file", id: f.id, name: f.name, ownerId: f.owner_id }),
@@ -462,6 +475,8 @@ function DrivePage() {
           <Button variant="outline" className="w-full" onClick={() => setFolderDialog(true)} disabled={section !== "my"}>
             <FolderPlus /> New folder
           </Button>
+
+          <StorageIndicator userId={user.id} />
 
           <button
             onClick={() => signOut()}
@@ -644,11 +659,46 @@ function DrivePage() {
   );
 }
 
+function StorageIndicator({ userId }: { userId: string }) {
+  const { data } = useQuery({
+    queryKey: ["drive", "storage", userId],
+    queryFn: async () => {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data, error } = await supabase
+        .from("files")
+        .select("size")
+        .eq("owner_id", userId)
+        .is("deleted_at", null);
+      if (error) throw error;
+      const used = (data ?? []).reduce((a, b) => a + (b.size ?? 0), 0);
+      return { used, count: data?.length ?? 0 };
+    },
+  });
+  const QUOTA = 15 * 1024 * 1024 * 1024; // 15 GB
+  const used = data?.used ?? 0;
+  const pct = Math.min(100, (used / QUOTA) * 100);
+  return (
+    <div className="px-2 py-2 space-y-1.5">
+      <div className="h-1.5 w-full rounded-full bg-surface-2 overflow-hidden">
+        <div
+          className="h-full bg-primary rounded-full transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <span>{formatBytes(used)} used</span>
+        <span>{formatBytes(QUOTA)}</span>
+      </div>
+    </div>
+  );
+}
+
 type FolderActions = {
   onShare: (f: FolderRow) => void;
   onRename: (f: FolderRow) => void;
   onMove: (f: FolderRow) => void;
   onDelete: (f: FolderRow) => void;
+  onColor: (f: FolderRow, color: string | null) => void;
 };
 type FileActions = {
   onShare: (f: FileRow) => void;
@@ -661,13 +711,57 @@ type FileActions = {
 };
 
 function FolderContextMenu({ folder, actions, children }: { folder: FolderRow; actions: FolderActions; children: React.ReactNode }) {
+  const current = folder.color ?? null;
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
+      <ContextMenuContent className="w-52">
         <ContextMenuItem onSelect={() => actions.onShare(folder)}><Share2 className="size-3.5 mr-2" /> Share</ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.onRename(folder)}><Pencil className="size-3.5 mr-2" /> Rename</ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.onMove(folder)}><Move className="size-3.5 mr-2" /> Move…</ContextMenuItem>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger><Palette className="size-3.5 mr-2" /> Color</ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-56 p-2">
+            <div className="grid grid-cols-7 gap-1.5">
+              {FOLDER_PALETTE.map((c) => {
+                const active = (current ?? DEFAULT_FOLDER_COLOR).toLowerCase() === c.value.toLowerCase();
+                return (
+                  <button
+                    key={c.value}
+                    title={c.name}
+                    onClick={() => actions.onColor(folder, c.value)}
+                    className={cn(
+                      "size-6 rounded-full grid place-items-center ring-1 ring-black/10 hover:scale-110 transition-transform",
+                      active && "ring-2 ring-foreground/70",
+                    )}
+                    style={{ backgroundColor: c.value }}
+                  >
+                    {active && <Check className="size-3 text-white drop-shadow" />}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer flex-1">
+                <input
+                  type="color"
+                  value={current ?? DEFAULT_FOLDER_COLOR}
+                  onChange={(e) => actions.onColor(folder, e.target.value)}
+                  className="size-6 rounded cursor-pointer border-0 bg-transparent p-0"
+                />
+                Custom…
+              </label>
+              {current && (
+                <button
+                  onClick={() => actions.onColor(folder, null)}
+                  className="text-[11px] px-2 py-1 rounded-md hover:bg-surface-2 text-muted-foreground"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.onDelete(folder)} className="text-destructive focus:text-destructive">
           <Trash2 className="size-3.5 mr-2" /> Delete
@@ -985,7 +1079,7 @@ function Column(props: {
                   )}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Folder className="size-4 text-muted-foreground shrink-0" />
+                    <FolderIcon color={f.color} className="size-5" />
                     <span className="truncate font-medium">{f.name}</span>
                   </div>
                   <ChevronRight className="size-3.5 text-muted-foreground/60 shrink-0" />
@@ -1143,7 +1237,7 @@ function FlatView(props: {
                 className="w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm hover:bg-surface-2/60 group"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Folder className="size-4 text-muted-foreground" />
+                  <FolderIcon color={f.color} className="size-5" />
                   <span className="truncate font-medium">{f.name}</span>
                 </div>
                 <span className="text-muted-foreground">—</span>
@@ -1199,7 +1293,7 @@ function FlatView(props: {
                       onClick={() => onOpenFolder(f)}
                       className="h-12 rounded-lg ring-1 ring-hairline bg-surface hover:bg-surface-2 transition-colors px-3 flex items-center gap-3 text-left"
                     >
-                      <Folder className="size-4 text-muted-foreground shrink-0" />
+                      <FolderIcon color={f.color} className="size-6" />
                       <span className="text-sm font-medium truncate">{f.name}</span>
                     </button>
                   </FolderContextMenu>
@@ -1350,7 +1444,7 @@ function TrashView({ userId, invalidate }: { userId: string; invalidate: () => v
           {folders.map((f) => (
             <div key={f.id} className="grid grid-cols-[1fr_120px_160px_120px] gap-4 px-6 h-12 items-center text-sm hover:bg-surface-2/40">
               <div className="flex items-center gap-3 min-w-0">
-                <Folder className="size-4 text-muted-foreground" />
+                <FolderIcon color={f.color} className="size-5" />
                 <span className="truncate font-medium">{f.name}</span>
               </div>
               <span className="text-muted-foreground">—</span>
