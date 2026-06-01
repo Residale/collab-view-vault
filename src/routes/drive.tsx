@@ -24,6 +24,8 @@ import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
 import { RenameDialog } from "@/components/drive/RenameDialog";
 import { MoveDialog } from "@/components/drive/MoveDialog";
 import { CommandPalette } from "@/components/drive/CommandPalette";
+import { SearchBar, type SearchFilters } from "@/components/drive/SearchBar";
+import { SearchResults } from "@/components/drive/SearchResults";
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
 } from "@/components/ui/context-menu";
@@ -66,6 +68,11 @@ function DrivePage() {
   const [moveTarget, setMoveTarget] = useState<{ kind: "file" | "folder"; id: string; name: string; currentParent: string | null } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // Full-text search (header search bar) — when active, replaces main content with results.
+  const [activeQuery, setActiveQuery] = useState<string>("");
+  const [activeFilters, setActiveFilters] = useState<SearchFilters>({
+    types: [], modifiedRange: "any", sizeRange: "any", starred: false,
+  });
   const [dragOver, setDragOver] = useState(false);
   const [dark, setDark] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -341,23 +348,31 @@ function DrivePage() {
 
       {/* Main */}
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b border-hairline flex items-center justify-between px-6 bg-background gap-4">
-          <Breadcrumb section={section} path={path} setPath={setPath} />
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              onClick={() => setPaletteOpen(true)}
-              className="hidden md:flex items-center gap-2 h-8 px-2.5 text-xs text-muted-foreground bg-surface-2 rounded-md ring-1 ring-hairline hover:text-foreground transition-colors"
-            >
-              <Search className="size-3.5" /> Quick find
-              <kbd className="ml-2 text-[10px] font-mono bg-background px-1.5 py-0.5 rounded ring-1 ring-hairline">⌘K</kbd>
-            </button>
+        {/* Top header: centered search bar */}
+        <header className="h-16 border-b border-hairline flex items-center px-6 bg-background gap-4">
+          <div className="flex-1 min-w-0 flex items-center gap-3">
+            <Breadcrumb section={section} path={path} setPath={setPath} />
+          </div>
+          <div className="flex-[2] flex justify-center px-4">
+            <SearchBar
+              onOpenFile={(f) => { setSection("my"); setQuickLook(f); }}
+              onOpenFolder={(f) => { setSection("my"); setPath([null, f.id]); }}
+              onActiveQueryChange={(q, filters) => { setActiveQuery(q); setActiveFilters(filters); }}
+            />
+          </div>
+          <div className="flex-1 flex items-center justify-end gap-2 shrink-0">
             <div className="relative">
               <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search} onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filter…"
-                className="w-44 pl-8 h-8 text-sm bg-surface-2 border-0"
+                placeholder="Filter here…"
+                className="w-36 pl-8 h-8 text-xs bg-surface-2 border-0"
               />
+            </div>
+            <div className="flex items-center bg-surface-2 p-0.5 rounded-md ring-1 ring-hairline">
+              <ViewToggle active={view === "columns"} onClick={() => setView("columns")} icon={<Columns3 className="size-3.5" />} />
+              <ViewToggle active={view === "list"} onClick={() => setView("list")} icon={<ListIcon className="size-3.5" />} />
+              <ViewToggle active={view === "grid"} onClick={() => setView("grid")} icon={<Grid3x3 className="size-3.5" />} />
             </div>
             <button
               onClick={() => setDark((v) => !v)}
@@ -366,16 +381,19 @@ function DrivePage() {
             >
               {dark ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
             </button>
-            <div className="flex items-center bg-surface-2 p-0.5 rounded-md ring-1 ring-hairline">
-              <ViewToggle active={view === "columns"} onClick={() => setView("columns")} icon={<Columns3 className="size-3.5" />} />
-              <ViewToggle active={view === "list"} onClick={() => setView("list")} icon={<ListIcon className="size-3.5" />} />
-              <ViewToggle active={view === "grid"} onClick={() => setView("grid")} icon={<Grid3x3 className="size-3.5" />} />
-            </div>
           </div>
         </header>
 
         <div className="flex-1 flex overflow-hidden">
-          {view === "columns" ? (
+          {activeQuery ? (
+            <SearchResults
+              query={activeQuery}
+              filters={activeFilters}
+              onOpenFile={(f) => setQuickLook(f)}
+              onOpenFolder={(f) => { setActiveQuery(""); setSection("my"); setPath([null, f.id]); }}
+              onClear={() => setActiveQuery("")}
+            />
+          ) : view === "columns" ? (
             <ColumnsView
               userId={user.id}
               section={section}
