@@ -345,11 +345,12 @@ export async function searchAll(ownerId: string, query: string) {
 
 
 export async function searchUsersByEmail(query: string) {
-  const { data, error } = await supabase
-    .from("profiles").select("id, email, display_name, avatar_url")
-    .ilike("email", `%${query}%`).limit(8);
+  // Uses a SECURITY DEFINER RPC so users can find collaborators by email
+  // without exposing the full profiles table to every authenticated user.
+  if (!query || query.trim().length < 2) return [];
+  const { data, error } = await supabase.rpc("search_users_by_email", { _query: query.trim() });
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as Array<{ id: string; email: string | null; display_name: string | null; avatar_url: string | null }>;
 }
 
 export async function shareTarget(opts: {
