@@ -30,12 +30,12 @@ export function Thumbnail({
 }) {
   const kind = fileKind(file.mime_type, file.name);
   const wantsPreview = kind === "image" || kind === "video" || kind === "pdf";
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const pdfPreviewUrl = useMemo(() => {
     if (!url || kind !== "pdf") return null;
     return `${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH&page=1`;
   }, [kind, url]);
-  const [url, setUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (!wantsPreview) return;
