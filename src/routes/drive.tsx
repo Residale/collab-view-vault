@@ -751,6 +751,20 @@ function DrivePage() {
               onDropIntoFolder={dropIntoFolder}
             />
           )}
+
+          {previewFile && (
+            <PreviewPane
+              file={previewFile}
+              currentUserId={user.id}
+              onClose={() => setPreviewFile(null)}
+              onShare={fileActions.onShare}
+              onDelete={onDeleteFile}
+              onToggleStar={onStar}
+              onDownload={onDownload}
+              onCopyLink={onCopyLink}
+              onOpenFullscreen={(f) => setQuickLook(f)}
+            />
+          )}
         </div>
 
         <SelectionBar
