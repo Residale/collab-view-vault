@@ -3,7 +3,7 @@ import { fileKind, type FileKind } from "@/lib/drive-api";
 import {
   FileText, Image as ImageIcon, Film, Music, FileSpreadsheet,
   FileCode, FileArchive, File as FileGeneric, Presentation,
-  Palette, Type, BookOpen, AppWindow, Database,
+  Palette, Type, BookOpen, AppWindow, Database, Link as LinkIcon,
 } from "lucide-react";
 
 type Style = {
