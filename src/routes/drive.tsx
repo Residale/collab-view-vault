@@ -3,9 +3,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
+  ChevronLeft, ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
-  Download, Pencil, Trash2, Move, Link2, Sun, Moon, Eye, RotateCcw, X,
+  Download, Pencil, Trash2, Move, Link2, Sun, Moon, RotateCcw, X,
   Palette, Check,
 } from "lucide-react";
 
@@ -807,6 +807,12 @@ function DrivePage() {
         onOpenChange={(v) => !v && setRenameTarget(null)}
         initial={renameTarget?.name ?? ""}
         title={renameTarget?.kind === "folder" ? "Rename folder" : "Rename file"}
+        lockExtension={renameTarget?.kind === "file"}
+        existingNames={
+          renameTarget?.kind === "folder"
+            ? activeFolders.map((f) => f.name)
+            : activeFiles.map((f) => f.name)
+        }
         onSubmit={async (name) => {
           if (!renameTarget) return;
           try {
@@ -1084,23 +1090,32 @@ function useLasso(
   onBackgroundClick?: () => void,
 ) {
   const [rect, setRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  // Keep callbacks in refs so the effect can stay stable across renders —
+  // otherwise listeners get re-bound mid-drag and the drag state resets,
+  // which is what makes the lasso draw "a tiny line and stop".
+  const getItemsRef = useRef(getItems);
+  const onSelectRef = useRef(onSelect);
+  const onBgRef = useRef(onBackgroundClick);
+  useEffect(() => { getItemsRef.current = getItems; });
+  useEffect(() => { onSelectRef.current = onSelect; });
+  useEffect(() => { onBgRef.current = onBackgroundClick; });
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    let startX = 0, startY = 0, additive = false, active = false, moved = false;
-    let baseScrollTop = 0;
+    let startX = 0, startY = 0, startClientX = 0, startClientY = 0;
+    let additive = false, active = false, moved = false;
 
     const onDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
-      // Don't start lasso if user pressed on an interactive item.
       const target = e.target as HTMLElement;
       if (target.closest("[data-drive-item], button, a, input, [role='menuitem']")) return;
       const cRect = el.getBoundingClientRect();
       startX = e.clientX - cRect.left + el.scrollLeft;
       startY = e.clientY - cRect.top + el.scrollTop;
-      baseScrollTop = el.scrollTop;
+      startClientX = e.clientX;
+      startClientY = e.clientY;
       additive = e.metaKey || e.ctrlKey || e.shiftKey;
       active = true;
       moved = false;
@@ -1116,36 +1131,27 @@ function useLasso(
       const dy = Math.abs(curY - startY);
       if (!moved && dx < 4 && dy < 4) return;
       moved = true;
-      const x = Math.min(startX, curX);
-      const y = Math.min(startY, curY);
-      const w = Math.abs(curX - startX);
-      const h = Math.abs(curY - startY);
-      setRect({ x, y, w, h });
-
-      // Compute selection
-      const items = getItems();
+      setRect({
+        x: Math.min(startX, curX),
+        y: Math.min(startY, curY),
+        w: Math.abs(curX - startX),
+        h: Math.abs(curY - startY),
+      });
+      const vx1 = Math.min(e.clientX, startClientX);
+      const vy1 = Math.min(e.clientY, startClientY);
+      const vx2 = Math.max(e.clientX, startClientX);
+      const vy2 = Math.max(e.clientY, startClientY);
       const hit = new Set<string>();
-      const cTop = cRect.top;
-      const cLeft = cRect.left;
-      const lassoLeft = x + cLeft - el.scrollLeft;
-      const lassoTop = y + cTop - el.scrollTop + (el.scrollTop - baseScrollTop);
-      // Simpler: use bounding rects in viewport coords directly
-      const vx1 = Math.min(e.clientX, cLeft + startX - el.scrollLeft);
-      const vy1 = Math.min(e.clientY, cTop + startY - el.scrollTop);
-      const vx2 = Math.max(e.clientX, cLeft + startX - el.scrollLeft);
-      const vy2 = Math.max(e.clientY, cTop + startY - el.scrollTop);
-      void lassoLeft; void lassoTop;
-      for (const it of items) {
+      for (const it of getItemsRef.current()) {
         const r = it.el.getBoundingClientRect();
-        const intersects = r.right >= vx1 && r.left <= vx2 && r.bottom >= vy1 && r.top <= vy2;
-        if (intersects) hit.add(it.id);
+        if (r.right >= vx1 && r.left <= vx2 && r.bottom >= vy1 && r.top <= vy2) hit.add(it.id);
       }
-      onSelect(hit, additive);
+      onSelectRef.current(hit, additive);
     };
 
     const onUp = () => {
       if (!active) return;
-      if (!moved && onBackgroundClick) onBackgroundClick();
+      if (!moved) onBgRef.current?.();
       active = false;
       setRect(null);
     };
@@ -1158,7 +1164,7 @@ function useLasso(
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [containerRef, getItems, onSelect, onBackgroundClick]);
+  }, [containerRef]);
 
   return rect;
 }
@@ -1189,17 +1195,79 @@ function ColumnsView(props: SharedViewProps & {
   setPath: (p: (string | null)[]) => void;
   onDropExternalFiles: (parentFolderId: string | null, files: FileList) => void | Promise<void>;
 }) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
+  const depth = props.path.length;
+
+  // Auto-scroll to the newly opened (rightmost) column whenever the path grows.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    // Wait one frame so the new column has been laid out.
+    const id = requestAnimationFrame(() => {
+      el.scrollTo({ left: el.scrollWidth, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [depth]);
+
+  // Track which arrows to show (hide when at an edge).
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const update = () => {
+      const max = el.scrollWidth - el.clientWidth - 1;
+      setEdges({ left: el.scrollLeft > 1, right: el.scrollLeft < max });
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", update); ro.disconnect(); };
+  }, [depth]);
+
+  const scrollBy = (dir: -1 | 1) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.max(288, el.clientWidth * 0.6), behavior: "smooth" });
+  };
+
   return (
-    <div className="flex-1 flex overflow-x-auto thin-scroll bg-background min-w-0">
-      {props.path.map((parentId, depth) => (
-        <Column
-          key={`${depth}-${parentId ?? "root"}`}
-          {...props}
-          parentId={parentId}
-          depth={depth}
-          isLast={depth === props.path.length - 1}
-        />
-      ))}
+    <div className="flex-1 relative min-w-0">
+      <div
+        ref={scrollerRef}
+        className="absolute inset-0 flex overflow-x-auto thin-scroll bg-background"
+        style={{ scrollBehavior: "smooth" }}
+      >
+        {props.path.map((parentId, d) => (
+          <Column
+            key={`${d}-${parentId ?? "root"}`}
+            {...props}
+            parentId={parentId}
+            depth={d}
+            isLast={d === props.path.length - 1}
+          />
+        ))}
+      </div>
+      {edges.left && (
+        <button
+          onClick={() => scrollBy(-1)}
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 size-8 grid place-items-center rounded-full bg-background/90 backdrop-blur ring-1 ring-hairline text-muted-foreground hover:text-foreground hover:bg-background shadow-architect"
+          title="Scroll left"
+          aria-label="Scroll columns left"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+      )}
+      {edges.right && (
+        <button
+          onClick={() => scrollBy(1)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 size-8 grid place-items-center rounded-full bg-background/90 backdrop-blur ring-1 ring-hairline text-muted-foreground hover:text-foreground hover:bg-background shadow-architect"
+          title="Scroll right"
+          aria-label="Scroll columns right"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      )}
     </div>
   );
 }
@@ -1389,13 +1457,6 @@ function Column(props: SharedViewProps & {
                       <div className="text-[13px] font-medium truncate leading-tight">{f.name}</div>
                       <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
-                      className="size-6 grid place-items-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-surface-2"
-                      title="Quick Look (Space)"
-                    >
-                      <Eye className="size-3" />
-                    </button>
                   </div>
                 </FileContextMenu>
               );
@@ -1654,15 +1715,8 @@ function FlatView(props: SharedViewProps & {
                             mime={f.mime_type}
                             className="absolute top-2 left-2"
                           />
-                          <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                          <div className="absolute top-2 right-2">
                             <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
-                              className="size-7 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 ring-1 ring-hairline hover:bg-background"
-                              title="Quick Look (Space)"
-                            >
-                              <Eye className="size-3.5" />
-                            </button>
                           </div>
                         </div>
 

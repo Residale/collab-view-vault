@@ -54,7 +54,7 @@ export function PreviewPane({
   const isSheet = kind === "spreadsheet" || /\.(xlsx|xls|csv|tsv|ods)$/i.test(file.name);
 
   return (
-    <div className="w-[380px] shrink-0 border-l border-hairline bg-surface-2 overflow-y-auto thin-scroll relative flex flex-col">
+    <div className="w-[440px] shrink-0 border-l border-hairline bg-surface-2 overflow-y-auto thin-scroll relative flex flex-col">
       {onClose && (
         <button
           onClick={onClose}
