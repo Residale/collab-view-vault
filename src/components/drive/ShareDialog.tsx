@@ -10,8 +10,13 @@ import {
 import {
   listSharesFor, removeShare, searchUsersByEmail, shareTarget,
 } from "@/lib/drive-api";
+import {
+  createPublicLink, deletePublicLink, getPublicLink, publicLinkUrl,
+  type PublicLink,
+} from "@/lib/public-links";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { X } from "lucide-react";
+import { X, Link2, Copy, Globe } from "lucide-react";
 
 export type ShareTargetInput = {
   type: "file" | "folder";

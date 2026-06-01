@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DriveRouteImport } from './routes/drive'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicLinkTokenRouteImport } from './routes/api/public/link.$token'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -28,35 +29,44 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicLinkTokenRoute = ApiPublicLinkTokenRouteImport.update({
+  id: '/api/public/link/$token',
+  path: '/api/public/link/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/drive': typeof DriveRoute
   '/login': typeof LoginRoute
+  '/api/public/link/$token': typeof ApiPublicLinkTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/drive': typeof DriveRoute
   '/login': typeof LoginRoute
+  '/api/public/link/$token': typeof ApiPublicLinkTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/drive': typeof DriveRoute
   '/login': typeof LoginRoute
+  '/api/public/link/$token': typeof ApiPublicLinkTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/drive' | '/login'
+  fullPaths: '/' | '/drive' | '/login' | '/api/public/link/$token'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/drive' | '/login'
-  id: '__root__' | '/' | '/drive' | '/login'
+  to: '/' | '/drive' | '/login' | '/api/public/link/$token'
+  id: '__root__' | '/' | '/drive' | '/login' | '/api/public/link/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DriveRoute: typeof DriveRoute
   LoginRoute: typeof LoginRoute
+  ApiPublicLinkTokenRoute: typeof ApiPublicLinkTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/link/$token': {
+      id: '/api/public/link/$token'
+      path: '/api/public/link/$token'
+      fullPath: '/api/public/link/$token'
+      preLoaderRoute: typeof ApiPublicLinkTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DriveRoute: DriveRoute,
   LoginRoute: LoginRoute,
+  ApiPublicLinkTokenRoute: ApiPublicLinkTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
