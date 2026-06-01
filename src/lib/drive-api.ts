@@ -116,9 +116,16 @@ export async function createFolder(ownerId: string, parentId: string | null, nam
   return data as FolderRow;
 }
 
+// Storage keys must be ASCII-safe (Supabase rejects accents, parens, etc).
+function sanitizeStorageName(name: string) {
+  const normalized = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  const cleaned = normalized.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_");
+  return cleaned.replace(/^_+|_+$/g, "") || "file";
+}
+
 export async function uploadFile(userId: string, folderId: string | null, file: File) {
   const fileId = crypto.randomUUID();
-  const path = `${userId}/${fileId}-${file.name}`;
+  const path = `${userId}/${fileId}-${sanitizeStorageName(file.name)}`;
   const { error: upErr } = await supabase.storage.from("drive").upload(path, file, {
     cacheControl: "3600", upsert: false, contentType: file.type || undefined,
   });
