@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { fileKind, getSignedUrl, type FileRow, formatBytes } from "@/lib/drive-api";
+import { fileKind, getSignedUrl, isExternalLink, externalUrl, type FileRow, formatBytes } from "@/lib/drive-api";
 import { Button } from "@/components/ui/button";
-import { Download, Share2, Star, Trash2, X, Maximize2, Link2, MessageSquare } from "lucide-react";
+import { Download, Share2, Star, Trash2, X, Maximize2, Link2, MessageSquare, ExternalLink as ExternalIcon } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 import { FileTagsEditor } from "./Tags";
