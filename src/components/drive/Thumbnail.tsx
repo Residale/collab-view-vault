@@ -5,18 +5,22 @@ import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
 /**
- * Visual preview for a file. Renders the image/video frame for media,
- * a styled icon for everything else. Signed URLs are cached in-memory
- * for the session to avoid re-signing on every scroll.
+ * Visual preview for a file. Image thumbnails are downscaled server-side
+ * (Supabase image transform) so we never ship full-resolution photos just
+ * to fill a 40px tile. `previewSize` caps the long edge in CSS pixels.
  */
 const urlCache = new Map<string, { url: string; expires: number }>();
 
-async function cachedSignedUrl(path: string) {
-  const cached = urlCache.get(path);
+async function cachedSignedUrl(
+  path: string,
+  transform?: { width: number; height: number; resize?: "cover" | "contain" | "fill"; quality?: number },
+) {
+  const key = transform ? `${path}::${transform.width}x${transform.height}:${transform.resize ?? "cover"}` : path;
+  const cached = urlCache.get(key);
   const now = Date.now();
   if (cached && cached.expires > now + 60_000) return cached.url;
-  const url = await getSignedUrl(path, 3600);
-  urlCache.set(path, { url, expires: now + 3600_000 });
+  const url = await getSignedUrl(path, 3600, transform);
+  urlCache.set(key, { url, expires: now + 3600_000 });
   return url;
 }
 
@@ -24,10 +28,13 @@ export function Thumbnail({
   file,
   className,
   iconClassName,
+  previewSize = 400,
 }: {
   file: FileRow;
   className?: string;
   iconClassName?: string;
+  /** Max width/height (px) for image thumbnails. Lower = faster. */
+  previewSize?: number;
 }) {
   const kind = fileKind(file.mime_type, file.name);
   const isSheet = kind === "spreadsheet" || /\.(xlsx|xls|csv|tsv|ods)$/i.test(file.name);
@@ -48,7 +55,12 @@ export function Thumbnail({
     setPdfImage(null);
     setSheetRows(null);
     setTextPreview(null);
-    cachedSignedUrl(file.storage_path)
+    // Only images benefit from the storage transform endpoint.
+    const transform =
+      kind === "image"
+        ? { width: previewSize, height: previewSize, resize: "cover" as const, quality: 72 }
+        : undefined;
+    cachedSignedUrl(file.storage_path, transform)
       .then((u) => {
         if (!cancelled) setUrl(u);
       })
@@ -58,7 +70,7 @@ export function Thumbnail({
     return () => {
       cancelled = true;
     };
-  }, [file.storage_path, wantsPreview]);
+  }, [file.storage_path, wantsPreview, kind, previewSize]);
 
   useEffect(() => {
     if (!url || kind !== "pdf") return;
@@ -137,6 +149,7 @@ export function Thumbnail({
             src={url}
             alt={file.name}
             loading="lazy"
+            decoding="async"
             onError={() => setFailed(true)}
             className="size-full object-cover"
           />
