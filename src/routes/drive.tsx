@@ -659,6 +659,40 @@ function DrivePage() {
   );
 }
 
+function StorageIndicator({ userId }: { userId: string }) {
+  const { data } = useQuery({
+    queryKey: ["drive", "storage", userId],
+    queryFn: async () => {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data, error } = await supabase
+        .from("files")
+        .select("size")
+        .eq("owner_id", userId)
+        .is("deleted_at", null);
+      if (error) throw error;
+      const used = (data ?? []).reduce((a, b) => a + (b.size ?? 0), 0);
+      return { used, count: data?.length ?? 0 };
+    },
+  });
+  const QUOTA = 15 * 1024 * 1024 * 1024; // 15 GB
+  const used = data?.used ?? 0;
+  const pct = Math.min(100, (used / QUOTA) * 100);
+  return (
+    <div className="px-2 py-2 space-y-1.5">
+      <div className="h-1.5 w-full rounded-full bg-surface-2 overflow-hidden">
+        <div
+          className="h-full bg-primary rounded-full transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <span>{formatBytes(used)} used</span>
+        <span>{formatBytes(QUOTA)}</span>
+      </div>
+    </div>
+  );
+}
+
 type FolderActions = {
   onShare: (f: FolderRow) => void;
   onRename: (f: FolderRow) => void;
