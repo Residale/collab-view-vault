@@ -6,12 +6,13 @@ import {
   ChevronLeft, ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
   Download, Pencil, Trash2, Move, Link2, Sun, Moon, RotateCcw, X,
-  Palette, Check,
+  Palette, Check, Link as LinkIcon,
 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
 import {
-  createFolder, deleteFile, deleteFolder, getSignedUrl, listFiles, listFolders, listRecent,
+  createExternalLink, createFolder, deleteFile, deleteFolder, detectExternalLink, externalUrl,
+  getSignedUrl, isExternalLink, listFiles, listFolders, listRecent,
   listSharedByMe, listSharedWithMe, listStarred, listTrash, moveFile, moveFolder, renameFile, renameFolder,
   restoreFile, restoreFolder, setFolderColor, toggleStar, trashFile, trashFolder, uploadFile,
   type FileRow, type FolderRow, type Section, formatBytes,
