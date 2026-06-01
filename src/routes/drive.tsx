@@ -476,6 +476,8 @@ function DrivePage() {
             <FolderPlus /> New folder
           </Button>
 
+          <StorageIndicator userId={user.id} />
+
           <button
             onClick={() => signOut()}
             className="w-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-2 px-2 py-1"
