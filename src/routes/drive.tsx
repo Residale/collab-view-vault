@@ -629,6 +629,7 @@ function DrivePage() {
         onOpenFolder={(f) => { setSection("my"); setPath([null, f.id]); }}
         actions={[
           { id: "upload", label: "Upload files", icon: <Upload className="size-4" />, onSelect: () => fileInputRef.current?.click() },
+          { id: "upload-folder", label: "Upload folder", icon: <Upload className="size-4" />, onSelect: () => folderInputRef.current?.click() },
           { id: "new-folder", label: "New folder", icon: <FolderPlus className="size-4" />, onSelect: () => setFolderDialog(true) },
           { id: "my", label: "Go to My Drive", icon: <Folder className="size-4" />, onSelect: () => setSection("my") },
           { id: "shared-with-me", label: "Go to Shared with me", icon: <Inbox className="size-4" />, onSelect: () => setSection("shared-with-me") },
