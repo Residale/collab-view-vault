@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { fileKind, getSignedUrl, type FileRow, formatBytes } from "@/lib/drive-api";
 import { Button } from "@/components/ui/button";
-import { Download, Share2, Star, Trash2 } from "lucide-react";
+import { Download, Share2, Star, Trash2, X } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 
 export function PreviewPane({
   file,
+  onClose,
   onShare, onDelete, onToggleStar, onDownload,
 }: {
   file: FileRow | null;
+  onClose?: () => void;
   onShare: (f: FileRow) => void;
   onDelete: (f: FileRow) => void;
   onToggleStar: (f: FileRow) => void;
