@@ -1759,7 +1759,8 @@ function FlatView(props: SharedViewProps & {
                           <FileTypeBadge
                             name={f.name}
                             mime={f.mime_type}
-                            className="absolute top-2 left-2"
+                            className="absolute bottom-2 left-2 size-7 rounded-md shadow-md ring-2 ring-background"
+                            iconClassName="size-4"
                           />
                           <div className="absolute top-2 right-2">
                             <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
