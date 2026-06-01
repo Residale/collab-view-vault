@@ -328,6 +328,15 @@ export type Database = {
         Args: { _folder: string; _user: string }
         Returns: boolean
       }
+      search_users_by_email: {
+        Args: { _query: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          email: string
+          id: string
+        }[]
+      }
     }
     Enums: {
       share_permission: "view" | "edit"
