@@ -148,6 +148,7 @@ export function SearchBar({
 
   function submit(query: string) {
     if (!query.trim()) return;
+    lastSubmittedRef.current = query.trim();
     recordSearch({ data: { query: query.trim() } }).catch(() => {});
     onActiveQueryChange(query.trim(), filters);
     setOpen(false);
