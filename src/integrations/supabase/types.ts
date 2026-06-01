@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           content_text: string | null
           created_at: string
+          deleted_at: string | null
           folder_id: string | null
           id: string
           mime_type: string | null
@@ -32,6 +33,7 @@ export type Database = {
         Insert: {
           content_text?: string | null
           created_at?: string
+          deleted_at?: string | null
           folder_id?: string | null
           id?: string
           mime_type?: string | null
@@ -46,6 +48,7 @@ export type Database = {
         Update: {
           content_text?: string | null
           created_at?: string
+          deleted_at?: string | null
           folder_id?: string | null
           id?: string
           mime_type?: string | null
@@ -70,6 +73,7 @@ export type Database = {
       folders: {
         Row: {
           created_at: string
+          deleted_at: string | null
           id: string
           name: string
           owner_id: string
@@ -78,6 +82,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           name: string
           owner_id: string
@@ -86,6 +91,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
           id?: string
           name?: string
           owner_id?: string

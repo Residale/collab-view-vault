@@ -5,15 +5,17 @@ import { toast } from "sonner";
 import {
   ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
-  Download, Pencil, Trash2, Move, Link2, Sun, Moon, Eye,
+  Download, Pencil, Trash2, Move, Link2, Sun, Moon, Eye, RotateCcw, X,
 } from "lucide-react";
+
 import { useAuth } from "@/lib/auth";
 import {
   createFolder, deleteFile, deleteFolder, getSignedUrl, listFiles, listFolders, listRecent,
-  listSharedByMe, listSharedWithMe, listStarred, moveFile, moveFolder, renameFile, renameFolder,
-  toggleStar, uploadFile,
+  listSharedByMe, listSharedWithMe, listStarred, listTrash, moveFile, moveFolder, renameFile, renameFolder,
+  restoreFile, restoreFolder, toggleStar, trashFile, trashFolder, uploadFile,
   type FileRow, type FolderRow, type Section, formatBytes,
 } from "@/lib/drive-api";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -172,38 +174,68 @@ function DrivePage() {
   };
 
   const onDeleteFile = async (f: FileRow) => {
-    if (!confirm(`Delete "${f.name}"?`)) return;
     try {
-      await deleteFile(f);
+      await trashFile(f.id);
       setSelectedIds((prev) => { const n = new Set(prev); n.delete(f.id); return n; });
       if (quickLook?.id === f.id) setQuickLook(null);
-      invalidate(); toast.success("Deleted");
+      invalidate();
+      toast.success(`"${f.name}" moved to Trash`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            try { await restoreFile(f.id); invalidate(); toast.success("Restored"); }
+            catch (e: any) { toast.error(e.message); }
+          },
+        },
+        duration: 6000,
+      });
     } catch (e: any) { toast.error(e.message); }
   };
 
   const onDeleteSelection = async () => {
     const targets = activeFiles.filter((f) => selectedIds.has(f.id));
     if (!targets.length) return;
-    if (!confirm(`Delete ${targets.length} item${targets.length > 1 ? "s" : ""}?`)) return;
-    const id = toast.loading(`Deleting ${targets.length}…`);
+    const id = toast.loading(`Moving ${targets.length} to Trash…`);
     let done = 0;
+    const ids: string[] = [];
     for (const f of targets) {
-      try { await deleteFile(f); done++; } catch (e: any) { toast.error(`${f.name}: ${e.message}`); }
+      try { await trashFile(f.id); ids.push(f.id); done++; } catch (e: any) { toast.error(`${f.name}: ${e.message}`); }
     }
     clearSelection();
     invalidate();
-    toast.success(`Deleted ${done}/${targets.length}`, { id });
+    toast.success(`${done} item${done > 1 ? "s" : ""} moved to Trash`, {
+      id,
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          try {
+            await Promise.all(ids.map((i) => restoreFile(i)));
+            invalidate(); toast.success("Restored");
+          } catch (e: any) { toast.error(e.message); }
+        },
+      },
+      duration: 6000,
+    });
   };
 
   const onDeleteFolder = async (f: FolderRow) => {
-    if (!confirm(`Delete folder "${f.name}"? Its files and subfolders will also be removed.`)) return;
     try {
-      await deleteFolder(f.id);
+      await trashFolder(f.id);
       setPath((p) => p.filter((id) => id !== f.id));
       invalidate();
-      toast.success("Folder deleted");
+      toast.success(`Folder "${f.name}" moved to Trash`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            try { await restoreFolder(f.id); invalidate(); toast.success("Restored"); }
+            catch (e: any) { toast.error(e.message); }
+          },
+        },
+        duration: 6000,
+      });
     } catch (e: any) { toast.error(e.message); }
   };
+
 
   const onStar = async (f: FileRow) => {
     try { await toggleStar(f); invalidate(); } catch (e: any) { toast.error(e.message); }
@@ -328,7 +360,9 @@ function DrivePage() {
           <NavItem icon={<Send className="size-4" />} label="Shared by me" active={section === "shared-by-me"} onClick={() => setSection("shared-by-me")} />
           <NavItem icon={<Clock className="size-4" />} label="Recent" active={section === "recent"} onClick={() => setSection("recent")} />
           <NavItem icon={<Star className="size-4" />} label="Starred" active={section === "starred"} onClick={() => setSection("starred")} />
+          <NavItem icon={<Trash2 className="size-4" />} label="Trash" active={section === "trash"} onClick={() => setSection("trash")} />
         </nav>
+
 
         <div className="mt-auto p-4 space-y-3">
           <Button className="w-full" onClick={() => fileInputRef.current?.click()}>
@@ -385,7 +419,9 @@ function DrivePage() {
         </header>
 
         <div className="flex-1 flex overflow-hidden">
-          {activeQuery ? (
+          {section === "trash" ? (
+            <TrashView userId={user.id} invalidate={invalidate} />
+          ) : activeQuery ? (
             <SearchResults
               query={activeQuery}
               filters={activeFilters}
@@ -393,6 +429,7 @@ function DrivePage() {
               onOpenFolder={(f) => { setActiveQuery(""); setSection("my"); setPath([null, f.id]); }}
               onClear={() => setActiveQuery("")}
             />
+
           ) : view === "columns" ? (
             <ColumnsView
               userId={user.id}
@@ -1130,3 +1167,129 @@ function FlatView(props: {
     </div>
   );
 }
+
+/* ---------------- Trash view ---------------- */
+
+function TrashView({ userId, invalidate }: { userId: string; invalidate: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["drive", "trash", userId],
+    queryFn: () => listTrash(userId),
+  });
+
+  const folders = data?.folders ?? [];
+  const files = data?.files ?? [];
+  const total = folders.length + files.length;
+
+  const onRestoreFile = async (f: FileRow) => {
+    try { await restoreFile(f.id); invalidate(); toast.success(`"${f.name}" restored`); }
+    catch (e: any) { toast.error(e.message); }
+  };
+  const onRestoreFolder = async (f: FolderRow) => {
+    try { await restoreFolder(f.id); invalidate(); toast.success(`"${f.name}" restored`); }
+    catch (e: any) { toast.error(e.message); }
+  };
+  const onPurgeFile = async (f: FileRow) => {
+    if (!confirm(`Permanently delete "${f.name}"? This cannot be undone.`)) return;
+    try { await deleteFile(f); invalidate(); toast.success("Deleted forever"); }
+    catch (e: any) { toast.error(e.message); }
+  };
+  const onPurgeFolder = async (f: FolderRow) => {
+    if (!confirm(`Permanently delete folder "${f.name}"? This cannot be undone.`)) return;
+    try { await deleteFolder(f.id); invalidate(); toast.success("Deleted forever"); }
+    catch (e: any) { toast.error(e.message); }
+  };
+  const onEmpty = async () => {
+    if (!total) return;
+    if (!confirm(`Empty Trash? ${total} item${total > 1 ? "s" : ""} will be permanently deleted.`)) return;
+    try {
+      await Promise.all([
+        ...files.map((f) => deleteFile(f)),
+        ...folders.map((f) => deleteFolder(f.id)),
+      ]);
+      invalidate();
+      toast.success("Trash emptied");
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const daysSince = (iso: string) => {
+    const ms = Date.now() - new Date(iso).getTime();
+    return Math.max(0, Math.floor(ms / 86_400_000));
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto thin-scroll bg-background">
+      <div className="px-6 py-4 border-b border-hairline flex items-center justify-between gap-4">
+        <div>
+          <div className="text-sm font-semibold">Trash</div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {total === 0 ? "Empty" : `${total} item${total > 1 ? "s" : ""} · auto-deleted after 30 days`}
+          </div>
+        </div>
+        {total > 0 && (
+          <Button size="sm" variant="destructive" onClick={onEmpty}>
+            <Trash2 /> Empty Trash
+          </Button>
+        )}
+      </div>
+
+      {isLoading && <div className="p-8 text-sm text-muted-foreground">Loading…</div>}
+
+      {!isLoading && total === 0 && (
+        <div className="grid place-items-center py-24 text-center">
+          <Trash2 className="size-10 text-muted-foreground/40 mb-3" />
+          <div className="text-sm font-medium">Nothing in Trash</div>
+          <div className="text-xs text-muted-foreground mt-1">Deleted files will appear here for 30 days.</div>
+        </div>
+      )}
+
+      {total > 0 && (
+        <div className="divide-y divide-hairline">
+          <div className="grid grid-cols-[1fr_120px_160px_120px] gap-4 px-6 h-9 items-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground sticky top-0 bg-background z-10 border-b border-hairline">
+            <span>Name</span><span>Size</span><span>Deleted</span><span className="text-right">Actions</span>
+          </div>
+          {folders.map((f) => (
+            <div key={f.id} className="grid grid-cols-[1fr_120px_160px_120px] gap-4 px-6 h-12 items-center text-sm hover:bg-surface-2/40">
+              <div className="flex items-center gap-3 min-w-0">
+                <Folder className="size-4 text-muted-foreground" />
+                <span className="truncate font-medium">{f.name}</span>
+              </div>
+              <span className="text-muted-foreground">—</span>
+              <span className="text-muted-foreground">
+                {f.deleted_at ? `${daysSince(f.deleted_at)}d ago · ${30 - daysSince(f.deleted_at)}d left` : "—"}
+              </span>
+              <div className="flex items-center justify-end gap-1">
+                <button onClick={() => onRestoreFolder(f)} className="h-7 px-2 rounded-md text-xs hover:bg-surface-2 inline-flex items-center gap-1.5" title="Restore">
+                  <RotateCcw className="size-3" /> Restore
+                </button>
+                <button onClick={() => onPurgeFolder(f)} className="h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="Delete forever">
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+          {files.map((f) => (
+            <div key={f.id} className="grid grid-cols-[1fr_120px_160px_120px] gap-4 px-6 h-12 items-center text-sm hover:bg-surface-2/40">
+              <div className="flex items-center gap-3 min-w-0">
+                <Thumbnail file={f} className="size-8 rounded ring-1 ring-hairline shrink-0" iconClassName="size-4" />
+                <span className="truncate font-medium">{f.name}</span>
+              </div>
+              <span className="text-muted-foreground">{formatBytes(f.size)}</span>
+              <span className="text-muted-foreground">
+                {f.deleted_at ? `${daysSince(f.deleted_at)}d ago · ${30 - daysSince(f.deleted_at)}d left` : "—"}
+              </span>
+              <div className="flex items-center justify-end gap-1">
+                <button onClick={() => onRestoreFile(f)} className="h-7 px-2 rounded-md text-xs hover:bg-surface-2 inline-flex items-center gap-1.5" title="Restore">
+                  <RotateCcw className="size-3" /> Restore
+                </button>
+                <button onClick={() => onPurgeFile(f)} className="h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="Delete forever">
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
