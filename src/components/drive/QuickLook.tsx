@@ -102,7 +102,30 @@ export function QuickLook({
               </div>
             </div>
 
-            <div className="bg-background grid place-items-center overflow-hidden" style={{ height: "calc(88vh - 3rem)" }}>
+            <div className="bg-background grid place-items-center overflow-hidden relative" style={{ height: "calc(88vh - 3rem)" }}>
+              {onNavigate && prev && (
+                <button
+                  onClick={() => onNavigate(prev)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 z-10 size-10 grid place-items-center rounded-full bg-surface/80 backdrop-blur ring-1 ring-hairline text-foreground hover:bg-surface"
+                  title="Previous (←)"
+                >
+                  <ChevronLeft className="size-5" />
+                </button>
+              )}
+              {onNavigate && next && (
+                <button
+                  onClick={() => onNavigate(next)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 size-10 grid place-items-center rounded-full bg-surface/80 backdrop-blur ring-1 ring-hairline text-foreground hover:bg-surface"
+                  title="Next (→)"
+                >
+                  <ChevronRight className="size-5" />
+                </button>
+              )}
+              {onNavigate && siblings.length > 1 && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 px-2.5 py-1 rounded-full bg-surface/80 backdrop-blur ring-1 ring-hairline text-[11px] text-muted-foreground">
+                  {siblings.findIndex((s) => s.id === file.id) + 1} / {siblings.length}
+                </div>
+              )}
               {!url && (
                 <div className="text-center">
                   <FileIcon name={file.name} mime={file.mime_type} className="size-14 mx-auto mb-3 opacity-60" />
