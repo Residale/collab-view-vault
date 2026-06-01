@@ -107,6 +107,16 @@ function DrivePage() {
   };
   const clearSelection = () => { setSelectedIds(new Set()); setLastSelectedId(null); };
 
+  // Lasso selection bridge — child views dispatch a window event to avoid prop drilling.
+  useEffect(() => {
+    const onSet = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { ids: string[] };
+      setSelectedIds(new Set(detail.ids));
+    };
+    window.addEventListener("drive-lasso-set", onSet);
+    return () => window.removeEventListener("drive-lasso-set", onSet);
+  }, []);
+
   // Reset state when switching section
   useEffect(() => { setPath([null]); clearSelection(); setQuickLook(null); }, [section]);
 
