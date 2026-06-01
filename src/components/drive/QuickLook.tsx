@@ -1,19 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { fileKind, getSignedUrl, formatBytes, type FileRow } from "@/lib/drive-api";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 import { Button } from "@/components/ui/button";
-import { Download, Share2, Star, ExternalLink, X } from "lucide-react";
+import { Download, Share2, Star, ExternalLink, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 export function QuickLook({
   file,
+  siblings = [],
+  onNavigate,
   onClose,
   onDownload,
   onShare,
   onToggleStar,
 }: {
   file: FileRow | null;
+  siblings?: FileRow[];
+  onNavigate?: (f: FileRow) => void;
   onClose: () => void;
   onDownload: (f: FileRow) => void;
   onShare: (f: FileRow) => void;
@@ -42,6 +46,27 @@ export function QuickLook({
     fetch(url).then((r) => r.text()).then((t) => { if (!cancelled) setTextContent(t.slice(0, 200_000)); }).catch(() => {});
     return () => { cancelled = true; };
   }, [url, isText]);
+
+  const { prev, next } = useMemo(() => {
+    if (!file || siblings.length < 2) return { prev: null, next: null };
+    const idx = siblings.findIndex((s) => s.id === file.id);
+    if (idx === -1) return { prev: null, next: null };
+    return {
+      prev: siblings[(idx - 1 + siblings.length) % siblings.length],
+      next: siblings[(idx + 1) % siblings.length],
+    };
+  }, [file?.id, siblings]);
+
+  useEffect(() => {
+    if (!file || !onNavigate) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft" && prev) { e.preventDefault(); onNavigate!(prev); }
+      else if (e.key === "ArrowRight" && next) { e.preventDefault(); onNavigate!(next); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [file?.id, prev, next, onNavigate]);
+
 
   return (
     <Dialog open={!!file} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -77,7 +102,30 @@ export function QuickLook({
               </div>
             </div>
 
-            <div className="bg-background grid place-items-center overflow-hidden" style={{ height: "calc(88vh - 3rem)" }}>
+            <div className="bg-background grid place-items-center overflow-hidden relative" style={{ height: "calc(88vh - 3rem)" }}>
+              {onNavigate && prev && (
+                <button
+                  onClick={() => onNavigate(prev)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 z-10 size-10 grid place-items-center rounded-full bg-surface/80 backdrop-blur ring-1 ring-hairline text-foreground hover:bg-surface"
+                  title="Previous (←)"
+                >
+                  <ChevronLeft className="size-5" />
+                </button>
+              )}
+              {onNavigate && next && (
+                <button
+                  onClick={() => onNavigate(next)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 size-10 grid place-items-center rounded-full bg-surface/80 backdrop-blur ring-1 ring-hairline text-foreground hover:bg-surface"
+                  title="Next (→)"
+                >
+                  <ChevronRight className="size-5" />
+                </button>
+              )}
+              {onNavigate && siblings.length > 1 && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 px-2.5 py-1 rounded-full bg-surface/80 backdrop-blur ring-1 ring-hairline text-[11px] text-muted-foreground">
+                  {siblings.findIndex((s) => s.id === file.id) + 1} / {siblings.length}
+                </div>
+              )}
               {!url && (
                 <div className="text-center">
                   <FileIcon name={file.name} mime={file.mime_type} className="size-14 mx-auto mb-3 opacity-60" />

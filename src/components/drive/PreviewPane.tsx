@@ -4,13 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Download, Share2, Star, Trash2, X } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
+import { FileTagsEditor } from "./Tags";
+import { CommentsSection } from "./CommentsSection";
 
 export function PreviewPane({
   file,
+  currentUserId,
   onClose,
   onShare, onDelete, onToggleStar, onDownload,
 }: {
   file: FileRow | null;
+  currentUserId: string;
   onClose?: () => void;
   onShare: (f: FileRow) => void;
   onDelete: (f: FileRow) => void;
@@ -129,6 +133,14 @@ export function PreviewPane({
               <Meta label="Starred" value={file.starred ? "Yes" : "No"} />
             </dl>
           </div>
+          <div>
+            <FileTagsEditor fileId={file.id} userId={currentUserId} />
+          </div>
+
+          <div>
+            <CommentsSection fileId={file.id} currentUserId={currentUserId} />
+          </div>
+
           <div>
             <h3 className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-3">Actions</h3>
             <Button variant="outline" size="sm" onClick={() => onDelete(file)} className="text-destructive">
