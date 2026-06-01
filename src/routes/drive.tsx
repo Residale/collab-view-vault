@@ -732,13 +732,15 @@ function FlatView(props: {
               <button
                 onClick={() => onSelectFile(f)}
                 className={cn(
-                  "aspect-[4/5] rounded-lg ring-1 transition-colors p-4 flex flex-col text-left",
-                  selectedFile?.id === f.id ? "ring-primary bg-surface-2" : "ring-hairline bg-surface hover:bg-surface-2",
+                  "aspect-[4/5] rounded-lg ring-1 transition-colors overflow-hidden flex flex-col text-left bg-surface",
+                  selectedFile?.id === f.id ? "ring-primary" : "ring-hairline hover:ring-foreground/20",
                 )}
               >
-                <FileIcon name={f.name} mime={f.mime_type} className="size-10 mb-auto" />
-                <div className="text-sm font-medium truncate">{f.name}</div>
-                <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
+                <Thumbnail file={f} className="flex-1 w-full" iconClassName="size-10 opacity-70" />
+                <div className="p-3 border-t border-hairline bg-surface">
+                  <div className="text-sm font-medium truncate">{f.name}</div>
+                  <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
+                </div>
               </button>
             </FileContextMenu>
           ))}
