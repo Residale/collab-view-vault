@@ -150,14 +150,22 @@ function DrivePage() {
     });
   };
 
-  // Lasso selection bridge — child views dispatch a window event to avoid prop drilling.
+  // Lasso selection bridge — child views dispatch window events to avoid prop drilling.
   useEffect(() => {
-    const onSet = (e: Event) => {
+    const onSetFiles = (e: Event) => {
       const detail = (e as CustomEvent).detail as { ids: string[] };
       setSelectedIds(new Set(detail.ids));
     };
-    window.addEventListener("drive-lasso-set", onSet);
-    return () => window.removeEventListener("drive-lasso-set", onSet);
+    const onSetFolders = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { ids: string[] };
+      setSelectedFolderIds(new Set(detail.ids));
+    };
+    window.addEventListener("drive-lasso-set", onSetFiles);
+    window.addEventListener("drive-lasso-set-folders", onSetFolders);
+    return () => {
+      window.removeEventListener("drive-lasso-set", onSetFiles);
+      window.removeEventListener("drive-lasso-set-folders", onSetFolders);
+    };
   }, []);
 
   // Reset state when switching section
@@ -1129,16 +1137,15 @@ function FolderName({ id }: { id: string }) {
 
 /* ---------------- Lasso selection hook ---------------- */
 
+type LassoItem = { id: string; kind: "file" | "folder"; el: HTMLElement };
+
 function useLasso(
   containerRef: React.RefObject<HTMLDivElement | null>,
-  getItems: () => { id: string; el: HTMLElement }[],
-  onSelect: (ids: Set<string>, additive: boolean) => void,
+  getItems: () => LassoItem[],
+  onSelect: (files: Set<string>, folders: Set<string>, additive: boolean) => void,
   onBackgroundClick?: () => void,
 ) {
   const [rect, setRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  // Keep callbacks in refs so the effect can stay stable across renders —
-  // otherwise listeners get re-bound mid-drag and the drag state resets,
-  // which is what makes the lasso draw "a tiny line and stop".
   const getItemsRef = useRef(getItems);
   const onSelectRef = useRef(onSelect);
   const onBgRef = useRef(onBackgroundClick);
@@ -1187,12 +1194,16 @@ function useLasso(
       const vy1 = Math.min(e.clientY, startClientY);
       const vx2 = Math.max(e.clientX, startClientX);
       const vy2 = Math.max(e.clientY, startClientY);
-      const hit = new Set<string>();
+      const hitFiles = new Set<string>();
+      const hitFolders = new Set<string>();
       for (const it of getItemsRef.current()) {
         const r = it.el.getBoundingClientRect();
-        if (r.right >= vx1 && r.left <= vx2 && r.bottom >= vy1 && r.top <= vy2) hit.add(it.id);
+        if (r.right >= vx1 && r.left <= vx2 && r.bottom >= vy1 && r.top <= vy2) {
+          if (it.kind === "file") hitFiles.add(it.id);
+          else hitFolders.add(it.id);
+        }
       }
-      onSelectRef.current(hit, additive);
+      onSelectRef.current(hitFiles, hitFolders, additive);
     };
 
     const onUp = () => {
@@ -1370,35 +1381,37 @@ function Column(props: SharedViewProps & {
   const dropCounter = useRef(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const lassoBaseRef = useRef<Set<string>>(new Set());
+  const itemRefs = useRef<Map<string, { el: HTMLElement; kind: "file" | "folder" }>>(new Map());
+  const lassoBaseFiles = useRef<Set<string>>(new Set());
+  const lassoBaseFolders = useRef<Set<string>>(new Set());
 
   const lassoRect = useLasso(
     scrollRef,
-    () => Array.from(itemRefs.current.entries()).map(([id, el]) => ({ id, el })),
-    (hit, additive) => {
+    () => Array.from(itemRefs.current.entries()).map(([id, v]) => ({ id, kind: v.kind, el: v.el })),
+    (hitFiles, hitFolders, additive) => {
       if (!isLast) return;
-      if (additive) {
-        const merged = new Set(lassoBaseRef.current);
-        hit.forEach((id) => merged.add(id));
-        // Apply: call onFileClick with a synthetic? Simpler: rebuild via parent setter — not available here.
-        // We approximate by selecting each via onFileClick with meta.
-        // Instead, send a custom event up through window:
-        window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(merged) } }));
-      } else {
-        window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(hit) } }));
-      }
+      const mergedFiles = additive
+        ? new Set([...lassoBaseFiles.current, ...hitFiles])
+        : hitFiles;
+      const mergedFolders = additive
+        ? new Set([...lassoBaseFolders.current, ...hitFolders])
+        : hitFolders;
+      window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(mergedFiles) } }));
+      window.dispatchEvent(new CustomEvent("drive-lasso-set-folders", { detail: { ids: Array.from(mergedFolders) } }));
     },
     () => { if (isLast) onBackgroundClick(); },
   );
 
   // Capture base selection at lasso start
   useEffect(() => {
-    const onDown = () => { lassoBaseRef.current = new Set(selectedIds); };
+    const onDown = () => {
+      lassoBaseFiles.current = new Set(selectedIds);
+      lassoBaseFolders.current = new Set(selectedFolderIds);
+    };
     const el = scrollRef.current;
     el?.addEventListener("mousedown", onDown);
     return () => el?.removeEventListener("mousedown", onDown);
-  }, [selectedIds]);
+  }, [selectedIds, selectedFolderIds]);
 
   return (
     <div
@@ -1458,6 +1471,10 @@ function Column(props: SharedViewProps & {
                 folderActions={folderActions}
                 buildDragPayload={buildDragPayload}
                 onDropIntoFolder={onDropIntoFolder}
+                registerRef={(el) => {
+                  if (el) itemRefs.current.set(f.id, { el, kind: "folder" });
+                  else itemRefs.current.delete(f.id);
+                }}
               />
             ))}
           </div>
@@ -1473,7 +1490,7 @@ function Column(props: SharedViewProps & {
                   <div
                     data-drive-item="file"
                     ref={(el) => {
-                      if (el) itemRefs.current.set(f.id, el);
+                      if (el) itemRefs.current.set(f.id, { el, kind: "file" });
                       else itemRefs.current.delete(f.id);
                     }}
                     draggable
@@ -1531,7 +1548,7 @@ function Column(props: SharedViewProps & {
 
 function FolderRow({
   folder, isActive, isSelected, onOpen, onToggleSelected,
-  folderActions, buildDragPayload, onDropIntoFolder,
+  folderActions, buildDragPayload, onDropIntoFolder, registerRef,
 }: {
   folder: FolderRow;
   isActive: boolean;
@@ -1541,12 +1558,14 @@ function FolderRow({
   folderActions: FolderActions;
   buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
   onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+  registerRef?: (el: HTMLElement | null) => void;
 }) {
   const [over, setOver] = useState(false);
   return (
     <FolderContextMenu folder={folder} actions={folderActions}>
       <div
         data-drive-item="folder"
+        ref={registerRef}
         draggable
         onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
         onDragEnter={(e) => { if (isDriveDrag(e) || isExternalFileDrag(e)) { e.preventDefault(); e.stopPropagation(); setOver(true); } }}
@@ -1622,26 +1641,35 @@ function FlatView(props: SharedViewProps & {
   useEffect(() => { onActiveFiles(files); onActiveFolders(folders); }, [data]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const lassoBaseRef = useRef<Set<string>>(new Set());
+  const itemRefs = useRef<Map<string, { el: HTMLElement; kind: "file" | "folder" }>>(new Map());
+  const lassoBaseFiles = useRef<Set<string>>(new Set());
+  const lassoBaseFolders = useRef<Set<string>>(new Set());
 
   const lassoRect = useLasso(
     scrollRef,
-    () => Array.from(itemRefs.current.entries()).map(([id, el]) => ({ id, el })),
-    (hit, additive) => {
-      const merged = additive ? new Set(lassoBaseRef.current) : new Set<string>();
-      hit.forEach((id) => merged.add(id));
-      window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(merged) } }));
+    () => Array.from(itemRefs.current.entries()).map(([id, v]) => ({ id, kind: v.kind, el: v.el })),
+    (hitFiles, hitFolders, additive) => {
+      const mergedFiles = additive
+        ? new Set([...lassoBaseFiles.current, ...hitFiles])
+        : hitFiles;
+      const mergedFolders = additive
+        ? new Set([...lassoBaseFolders.current, ...hitFolders])
+        : hitFolders;
+      window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(mergedFiles) } }));
+      window.dispatchEvent(new CustomEvent("drive-lasso-set-folders", { detail: { ids: Array.from(mergedFolders) } }));
     },
     onBackgroundClick,
   );
 
   useEffect(() => {
-    const onDown = () => { lassoBaseRef.current = new Set(selectedIds); };
+    const onDown = () => {
+      lassoBaseFiles.current = new Set(selectedIds);
+      lassoBaseFolders.current = new Set(selectedFolderIds);
+    };
     const el = scrollRef.current;
     el?.addEventListener("mousedown", onDown);
     return () => el?.removeEventListener("mousedown", onDown);
-  }, [selectedIds]);
+  }, [selectedIds, selectedFolderIds]);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto thin-scroll bg-background relative select-none">
@@ -1664,6 +1692,10 @@ function FlatView(props: SharedViewProps & {
                   onShare={() => folderActions.onShare(f)}
                   buildDragPayload={buildDragPayload}
                   onDropIntoFolder={onDropIntoFolder}
+                  registerRef={(el) => {
+                    if (el) itemRefs.current.set(f.id, { el, kind: "folder" });
+                    else itemRefs.current.delete(f.id);
+                  }}
                 />
               </FolderContextMenu>
             );
@@ -1674,7 +1706,7 @@ function FlatView(props: SharedViewProps & {
               <FileContextMenu key={f.id} file={f} actions={fileActions}>
                 <div
                   data-drive-item="file"
-                  ref={(el) => { if (el) itemRefs.current.set(f.id, el); else itemRefs.current.delete(f.id); }}
+                  ref={(el) => { if (el) itemRefs.current.set(f.id, { el, kind: "file" }); else itemRefs.current.delete(f.id); }}
                   draggable
                   onDragStart={(e) => setDragPayload(e, buildDragPayload("file", f.id))}
                   onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
@@ -1727,6 +1759,10 @@ function FlatView(props: SharedViewProps & {
                         onToggleSelected={() => onToggleFolderSelected(f.id)}
                         buildDragPayload={buildDragPayload}
                         onDropIntoFolder={onDropIntoFolder}
+                        registerRef={(el) => {
+                          if (el) itemRefs.current.set(f.id, { el, kind: "folder" });
+                          else itemRefs.current.delete(f.id);
+                        }}
                       />
                     </FolderContextMenu>
                   );
@@ -1744,7 +1780,7 @@ function FlatView(props: SharedViewProps & {
                     <FileContextMenu key={f.id} file={f} actions={fileActions}>
                       <div
                         data-drive-item="file"
-                        ref={(el) => { if (el) itemRefs.current.set(f.id, el); else itemRefs.current.delete(f.id); }}
+                        ref={(el) => { if (el) itemRefs.current.set(f.id, { el, kind: "file" }); else itemRefs.current.delete(f.id); }}
                         draggable
                         onDragStart={(e) => setDragPayload(e, buildDragPayload("file", f.id))}
                         onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
@@ -1756,20 +1792,19 @@ function FlatView(props: SharedViewProps & {
                       >
                         <div className="aspect-square w-full bg-surface-2 relative overflow-hidden">
                           <Thumbnail file={f} className="size-full" iconClassName="size-10 opacity-70" />
-                          <FileTypeBadge
-                            name={f.name}
-                            mime={f.mime_type}
-                            className="absolute bottom-2 left-2 size-7 rounded-md shadow-md ring-2 ring-background"
-                            iconClassName="size-4"
-                          />
                           <div className="absolute top-2 right-2">
                             <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
                           </div>
                         </div>
 
-                        <div className="p-2.5 border-t border-hairline bg-surface">
-                          <div className="text-sm font-medium truncate">{f.name}</div>
-                          <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
+                        <div className="p-2.5 border-t border-hairline bg-surface flex items-center gap-2">
+                          <div className="text-sm font-medium truncate flex-1 min-w-0">{f.name}</div>
+                          <FileTypeBadge
+                            name={f.name}
+                            mime={f.mime_type}
+                            className="size-5 rounded shrink-0"
+                            iconClassName="size-3"
+                          />
                         </div>
                       </div>
                     </FileContextMenu>
@@ -1826,7 +1861,7 @@ function useFolderDropTarget(
 
 function FlatFolderRow({
   folder, isSelected, onOpen, onToggleSelected, onShare,
-  buildDragPayload, onDropIntoFolder,
+  buildDragPayload, onDropIntoFolder, registerRef,
 }: {
   folder: FolderRow;
   isSelected: boolean;
@@ -1835,11 +1870,13 @@ function FlatFolderRow({
   onShare: () => void;
   buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
   onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+  registerRef?: (el: HTMLElement | null) => void;
 }) {
   const drop = useFolderDropTarget(folder.id, onDropIntoFolder);
   return (
     <div
       data-drive-item="folder"
+      ref={registerRef}
       draggable
       onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
       {...drop.handlers}
@@ -1868,7 +1905,7 @@ function FlatFolderRow({
 
 function GridFolderCard({
   folder, isSelected, onOpen, onToggleSelected,
-  buildDragPayload, onDropIntoFolder,
+  buildDragPayload, onDropIntoFolder, registerRef,
 }: {
   folder: FolderRow;
   isSelected: boolean;
@@ -1876,11 +1913,13 @@ function GridFolderCard({
   onToggleSelected: () => void;
   buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
   onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+  registerRef?: (el: HTMLElement | null) => void;
 }) {
   const drop = useFolderDropTarget(folder.id, onDropIntoFolder);
   return (
     <div
       data-drive-item="folder"
+      ref={registerRef}
       draggable
       onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
       {...drop.handlers}
