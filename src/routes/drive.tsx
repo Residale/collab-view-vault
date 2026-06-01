@@ -665,12 +665,46 @@ function DrivePage() {
               setPath={setPath}
               search={search}
               selectedIds={selectedIds}
+              selectedFolderIds={selectedFolderIds}
               onFileClick={handleFileClick}
               onFileOpen={(f) => setQuickLook(f)}
               onBackgroundClick={clearSelection}
               onActiveFiles={setActiveFiles}
+              onActiveFolders={setActiveFolders}
               folderActions={folderActions}
               fileActions={fileActions}
+              onToggleFolderSelected={toggleFolderInSelection}
+              onToggleFileSelected={(id) => {
+                setSelectedIds((prev) => {
+                  const n = new Set(prev);
+                  if (n.has(id)) n.delete(id); else n.add(id);
+                  return n;
+                });
+              }}
+              buildDragPayload={buildDragPayload}
+              onDropIntoFolder={dropIntoFolder}
+              onDropExternalFiles={async (parentFolderId, files) => {
+                if (section !== "my") { toast.error("Switch to My Drive to upload"); return; }
+                // Push current path so upload goes to the right column.
+                const idx = path.indexOf(parentFolderId);
+                if (idx > 0) {
+                  // already on this path — fine
+                } else if (parentFolderId !== null) {
+                  setPath((p) => (p[p.length - 1] === parentFolderId ? p : [...p, parentFolderId]));
+                }
+                const arr = Array.from(files).filter((f) => f.size > 0 || f.type !== "");
+                if (!arr.length) return;
+                const entries = arr.map((f) => ({ file: f, relPath: [] }));
+                // Upload to specific folder regardless of current path:
+                const tid = toast.loading(`Uploading ${entries.length} item${entries.length > 1 ? "s" : ""}…`);
+                let done = 0;
+                for (const { file } of entries) {
+                  try { await uploadFile(user.id, parentFolderId, file); done++; toast.loading(`Uploading… ${done}/${entries.length}`, { id: tid }); }
+                  catch (e: any) { toast.error(`${file.name}: ${e?.message ?? "Failed"}`); }
+                }
+                invalidate();
+                toast.success(`Uploaded ${done}/${entries.length}`, { id: tid });
+              }}
             />
           ) : (
             <FlatView
@@ -680,27 +714,39 @@ function DrivePage() {
               search={search}
               mode={view}
               selectedIds={selectedIds}
+              selectedFolderIds={selectedFolderIds}
               onFileClick={handleFileClick}
               onFileOpen={(f) => setQuickLook(f)}
               onOpenFolder={(f) => setPath([...path, f.id])}
               onBackgroundClick={clearSelection}
               onActiveFiles={setActiveFiles}
+              onActiveFolders={setActiveFolders}
               folderActions={folderActions}
               fileActions={fileActions}
+              onToggleFolderSelected={toggleFolderInSelection}
+              onToggleFileSelected={(id) => {
+                setSelectedIds((prev) => {
+                  const n = new Set(prev);
+                  if (n.has(id)) n.delete(id); else n.add(id);
+                  return n;
+                });
+              }}
+              buildDragPayload={buildDragPayload}
+              onDropIntoFolder={dropIntoFolder}
             />
           )}
         </div>
 
-        {/* Selection action bar */}
-        {selectedIds.size > 1 && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-surface ring-1 ring-hairline rounded-full pl-4 pr-1.5 py-1.5 shadow-pane">
-            <span className="text-xs font-medium">{selectedIds.size} selected</span>
-            <Button size="sm" variant="ghost" onClick={clearSelection} className="h-7 rounded-full">Clear</Button>
-            <Button size="sm" variant="destructive" onClick={onDeleteSelection} className="h-7 rounded-full">
-              <Trash2 /> Delete
-            </Button>
-          </div>
-        )}
+        <SelectionBar
+          fileCount={selectedIds.size}
+          folderCount={selectedFolderIds.size}
+          onClear={clearSelection}
+          onMove={selectionMoveAll}
+          onDownload={selectionDownloadAll}
+          onDelete={selectionDeleteAll}
+          onStar={selectionStarAll}
+          onShare={selectionShareSingle}
+        />
       </main>
 
       <QuickLook
