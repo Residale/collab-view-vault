@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getDriveSignedUrl } from "./drive-preview.functions";
+import { indexFile } from "./drive-search.functions";
 
 export type FolderRow = {
   id: string;
