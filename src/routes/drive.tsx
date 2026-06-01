@@ -1692,6 +1692,10 @@ function FlatView(props: SharedViewProps & {
                   onShare={() => folderActions.onShare(f)}
                   buildDragPayload={buildDragPayload}
                   onDropIntoFolder={onDropIntoFolder}
+                  registerRef={(el) => {
+                    if (el) itemRefs.current.set(f.id, { el, kind: "folder" });
+                    else itemRefs.current.delete(f.id);
+                  }}
                 />
               </FolderContextMenu>
             );
@@ -1702,7 +1706,7 @@ function FlatView(props: SharedViewProps & {
               <FileContextMenu key={f.id} file={f} actions={fileActions}>
                 <div
                   data-drive-item="file"
-                  ref={(el) => { if (el) itemRefs.current.set(f.id, el); else itemRefs.current.delete(f.id); }}
+                  ref={(el) => { if (el) itemRefs.current.set(f.id, { el, kind: "file" }); else itemRefs.current.delete(f.id); }}
                   draggable
                   onDragStart={(e) => setDragPayload(e, buildDragPayload("file", f.id))}
                   onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
