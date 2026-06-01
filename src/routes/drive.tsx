@@ -1861,7 +1861,7 @@ function useFolderDropTarget(
 
 function FlatFolderRow({
   folder, isSelected, onOpen, onToggleSelected, onShare,
-  buildDragPayload, onDropIntoFolder,
+  buildDragPayload, onDropIntoFolder, registerRef,
 }: {
   folder: FolderRow;
   isSelected: boolean;
@@ -1870,11 +1870,13 @@ function FlatFolderRow({
   onShare: () => void;
   buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
   onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+  registerRef?: (el: HTMLElement | null) => void;
 }) {
   const drop = useFolderDropTarget(folder.id, onDropIntoFolder);
   return (
     <div
       data-drive-item="folder"
+      ref={registerRef}
       draggable
       onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
       {...drop.handlers}
