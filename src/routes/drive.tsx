@@ -1,11 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
-  Download, Pencil, Trash2, Move, Link2, Sun, Moon,
+  Download, Pencil, Trash2, Move, Link2, Sun, Moon, Eye,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -17,9 +17,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { FileIcon } from "@/components/drive/FileIcon";
 import { Thumbnail } from "@/components/drive/Thumbnail";
-import { PreviewPane } from "@/components/drive/PreviewPane";
+import { QuickLook } from "@/components/drive/QuickLook";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
 import { RenameDialog } from "@/components/drive/RenameDialog";
@@ -53,7 +52,14 @@ function DrivePage() {
   const [section, setSection] = useState<Section>("my");
   const [view, setView] = useState<ViewMode>("columns");
   const [path, setPath] = useState<(string | null)[]>([null]);
-  const [selectedFile, setSelectedFile] = useState<FileRow | null>(null);
+  // Multi-selection (file ids). Last-clicked is used as anchor for shift-range.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  // Files visible in the active container, used for shift-range and lasso.
+  const [activeFiles, setActiveFiles] = useState<FileRow[]>([]);
+  // Quick Look modal (Space / double-click)
+  const [quickLook, setQuickLook] = useState<FileRow | null>(null);
+
   const [shareTarget, setShareTarget] = useState<ShareTargetInput | null>(null);
   const [folderDialog, setFolderDialog] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ kind: "file" | "folder"; id: string; name: string } | null>(null);
@@ -70,7 +76,49 @@ function DrivePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
 
-  useEffect(() => { setPath([null]); setSelectedFile(null); }, [section]);
+  const selectedFile = useMemo(
+    () => (selectedIds.size === 1 ? activeFiles.find((f) => selectedIds.has(f.id)) ?? null : null),
+    [selectedIds, activeFiles],
+  );
+
+  // Selection helpers
+  const selectOnly = (id: string) => { setSelectedIds(new Set([id])); setLastSelectedId(id); };
+  const toggleInSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setLastSelectedId(id);
+  };
+  const selectRange = (id: string) => {
+    if (!lastSelectedId || !activeFiles.length) { selectOnly(id); return; }
+    const ids = activeFiles.map((f) => f.id);
+    const a = ids.indexOf(lastSelectedId);
+    const b = ids.indexOf(id);
+    if (a < 0 || b < 0) { selectOnly(id); return; }
+    const [from, to] = a < b ? [a, b] : [b, a];
+    setSelectedIds(new Set(ids.slice(from, to + 1)));
+  };
+  const handleFileClick = (file: FileRow, e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey) toggleInSelection(file.id);
+    else if (e.shiftKey) selectRange(file.id);
+    else selectOnly(file.id);
+  };
+  const clearSelection = () => { setSelectedIds(new Set()); setLastSelectedId(null); };
+
+  // Lasso selection bridge — child views dispatch a window event to avoid prop drilling.
+  useEffect(() => {
+    const onSet = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { ids: string[] };
+      setSelectedIds(new Set(detail.ids));
+    };
+    window.addEventListener("drive-lasso-set", onSet);
+    return () => window.removeEventListener("drive-lasso-set", onSet);
+  }, []);
+
+  // Reset state when switching section
+  useEffect(() => { setPath([null]); clearSelection(); setQuickLook(null); }, [section]);
 
   // Theme
   useEffect(() => {
@@ -118,8 +166,26 @@ function DrivePage() {
 
   const onDeleteFile = async (f: FileRow) => {
     if (!confirm(`Delete "${f.name}"?`)) return;
-    try { await deleteFile(f); if (selectedFile?.id === f.id) setSelectedFile(null); invalidate(); toast.success("Deleted"); }
-    catch (e: any) { toast.error(e.message); }
+    try {
+      await deleteFile(f);
+      setSelectedIds((prev) => { const n = new Set(prev); n.delete(f.id); return n; });
+      if (quickLook?.id === f.id) setQuickLook(null);
+      invalidate(); toast.success("Deleted");
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const onDeleteSelection = async () => {
+    const targets = activeFiles.filter((f) => selectedIds.has(f.id));
+    if (!targets.length) return;
+    if (!confirm(`Delete ${targets.length} item${targets.length > 1 ? "s" : ""}?`)) return;
+    const id = toast.loading(`Deleting ${targets.length}…`);
+    let done = 0;
+    for (const f of targets) {
+      try { await deleteFile(f); done++; } catch (e: any) { toast.error(`${f.name}: ${e.message}`); }
+    }
+    clearSelection();
+    invalidate();
+    toast.success(`Deleted ${done}/${targets.length}`, { id });
   };
 
   const onDeleteFolder = async (f: FolderRow) => {
@@ -144,16 +210,32 @@ function DrivePage() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault(); setPaletteOpen(true); return;
       }
-      if (inField) return;
-      if (e.key === "Escape" && selectedFile) { setSelectedFile(null); return; }
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedFile) {
-        e.preventDefault(); onDeleteFile(selectedFile); return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && !inField) {
+        if (activeFiles.length) {
+          e.preventDefault();
+          setSelectedIds(new Set(activeFiles.map((f) => f.id)));
+          setLastSelectedId(activeFiles[activeFiles.length - 1].id);
+        }
+        return;
       }
-      if (e.key === " " && selectedFile) { e.preventDefault(); onDownload(selectedFile); }
+      if (inField) return;
+      if (e.key === "Escape") {
+        if (quickLook) { setQuickLook(null); return; }
+        if (selectedIds.size) { clearSelection(); return; }
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.size) {
+        e.preventDefault(); onDeleteSelection(); return;
+      }
+      // Space = Quick Look (Mac Finder style)
+      if (e.key === " " && selectedFile && !quickLook) {
+        e.preventDefault(); setQuickLook(selectedFile); return;
+      }
+      // Enter = open / download
+      if (e.key === "Enter" && selectedFile) { e.preventDefault(); onDownload(selectedFile); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedFile]);
+  }, [selectedFile, selectedIds, quickLook, activeFiles]);
 
   // Drag & drop
   const onDragEnter = (e: React.DragEvent) => {
@@ -300,8 +382,11 @@ function DrivePage() {
               path={path}
               setPath={setPath}
               search={search}
-              selectedFile={selectedFile}
-              onSelectFile={setSelectedFile}
+              selectedIds={selectedIds}
+              onFileClick={handleFileClick}
+              onFileOpen={(f) => setQuickLook(f)}
+              onBackgroundClick={clearSelection}
+              onActiveFiles={setActiveFiles}
               folderActions={folderActions}
               fileActions={fileActions}
             />
@@ -312,26 +397,37 @@ function DrivePage() {
               path={path}
               search={search}
               mode={view}
-              selectedFile={selectedFile}
+              selectedIds={selectedIds}
+              onFileClick={handleFileClick}
+              onFileOpen={(f) => setQuickLook(f)}
               onOpenFolder={(f) => setPath([...path, f.id])}
-              onSelectFile={setSelectedFile}
+              onBackgroundClick={clearSelection}
+              onActiveFiles={setActiveFiles}
               folderActions={folderActions}
               fileActions={fileActions}
             />
           )}
-
-          {selectedFile && (
-            <PreviewPane
-              file={selectedFile}
-              onClose={() => setSelectedFile(null)}
-              onShare={fileActions.onShare}
-              onDelete={onDeleteFile}
-              onToggleStar={onStar}
-              onDownload={onDownload}
-            />
-          )}
         </div>
+
+        {/* Selection action bar */}
+        {selectedIds.size > 1 && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-surface ring-1 ring-hairline rounded-full pl-4 pr-1.5 py-1.5 shadow-pane">
+            <span className="text-xs font-medium">{selectedIds.size} selected</span>
+            <Button size="sm" variant="ghost" onClick={clearSelection} className="h-7 rounded-full">Clear</Button>
+            <Button size="sm" variant="destructive" onClick={onDeleteSelection} className="h-7 rounded-full">
+              <Trash2 /> Delete
+            </Button>
+          </div>
+        )}
       </main>
+
+      <QuickLook
+        file={quickLook}
+        onClose={() => setQuickLook(null)}
+        onDownload={onDownload}
+        onShare={fileActions.onShare}
+        onToggleStar={onStar}
+      />
 
       <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} />
       <NewFolderDialog
@@ -383,7 +479,7 @@ function DrivePage() {
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         userId={user.id}
-        onOpenFile={(f) => { setSection("my"); setSelectedFile(f); }}
+        onOpenFile={(f) => { setSection("my"); setQuickLook(f); }}
         onOpenFolder={(f) => { setSection("my"); setPath([null, f.id]); }}
         actions={[
           { id: "upload", label: "Upload files", icon: <Upload className="size-4" />, onSelect: () => fileInputRef.current?.click() },
@@ -518,14 +614,105 @@ function FolderName({ id }: { id: string }) {
   return <>{data ?? "…"}</>;
 }
 
+/* ---------------- Lasso selection hook ---------------- */
+
+function useLasso(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  getItems: () => { id: string; el: HTMLElement }[],
+  onSelect: (ids: Set<string>, additive: boolean) => void,
+  onBackgroundClick?: () => void,
+) {
+  const [rect, setRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    let startX = 0, startY = 0, additive = false, active = false, moved = false;
+    let baseScrollTop = 0;
+
+    const onDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      // Don't start lasso if user pressed on an interactive item.
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-drive-item], button, a, input, [role='menuitem']")) return;
+      const cRect = el.getBoundingClientRect();
+      startX = e.clientX - cRect.left + el.scrollLeft;
+      startY = e.clientY - cRect.top + el.scrollTop;
+      baseScrollTop = el.scrollTop;
+      additive = e.metaKey || e.ctrlKey || e.shiftKey;
+      active = true;
+      moved = false;
+      e.preventDefault();
+    };
+
+    const onMove = (e: MouseEvent) => {
+      if (!active) return;
+      const cRect = el.getBoundingClientRect();
+      const curX = e.clientX - cRect.left + el.scrollLeft;
+      const curY = e.clientY - cRect.top + el.scrollTop;
+      const dx = Math.abs(curX - startX);
+      const dy = Math.abs(curY - startY);
+      if (!moved && dx < 4 && dy < 4) return;
+      moved = true;
+      const x = Math.min(startX, curX);
+      const y = Math.min(startY, curY);
+      const w = Math.abs(curX - startX);
+      const h = Math.abs(curY - startY);
+      setRect({ x, y, w, h });
+
+      // Compute selection
+      const items = getItems();
+      const hit = new Set<string>();
+      const cTop = cRect.top;
+      const cLeft = cRect.left;
+      const lassoLeft = x + cLeft - el.scrollLeft;
+      const lassoTop = y + cTop - el.scrollTop + (el.scrollTop - baseScrollTop);
+      // Simpler: use bounding rects in viewport coords directly
+      const vx1 = Math.min(e.clientX, cLeft + startX - el.scrollLeft);
+      const vy1 = Math.min(e.clientY, cTop + startY - el.scrollTop);
+      const vx2 = Math.max(e.clientX, cLeft + startX - el.scrollLeft);
+      const vy2 = Math.max(e.clientY, cTop + startY - el.scrollTop);
+      void lassoLeft; void lassoTop;
+      for (const it of items) {
+        const r = it.el.getBoundingClientRect();
+        const intersects = r.right >= vx1 && r.left <= vx2 && r.bottom >= vy1 && r.top <= vy2;
+        if (intersects) hit.add(it.id);
+      }
+      onSelect(hit, additive);
+    };
+
+    const onUp = () => {
+      if (!active) return;
+      if (!moved && onBackgroundClick) onBackgroundClick();
+      active = false;
+      setRect(null);
+    };
+
+    el.addEventListener("mousedown", onDown);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      el.removeEventListener("mousedown", onDown);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [containerRef, getItems, onSelect, onBackgroundClick]);
+
+  return rect;
+}
+
 /* ---------------- Columns view (Finder-style) ---------------- */
 
 function ColumnsView(props: {
   userId: string; section: Section; path: (string | null)[];
   setPath: (p: (string | null)[]) => void;
   search: string;
-  selectedFile: FileRow | null;
-  onSelectFile: (f: FileRow | null) => void;
+  selectedIds: Set<string>;
+  onFileClick: (f: FileRow, e: React.MouseEvent) => void;
+  onFileOpen: (f: FileRow) => void;
+  onBackgroundClick: () => void;
+  onActiveFiles: (files: FileRow[]) => void;
   folderActions: FolderActions;
   fileActions: FileActions;
 }) {
@@ -537,6 +724,7 @@ function ColumnsView(props: {
           {...props}
           parentId={parentId}
           depth={depth}
+          isLast={depth === props.path.length - 1}
         />
       ))}
     </div>
@@ -544,15 +732,22 @@ function ColumnsView(props: {
 }
 
 function Column(props: {
-  userId: string; section: Section; parentId: string | null; depth: number;
+  userId: string; section: Section; parentId: string | null; depth: number; isLast: boolean;
   path: (string | null)[]; setPath: (p: (string | null)[]) => void;
   search: string;
-  selectedFile: FileRow | null;
-  onSelectFile: (f: FileRow | null) => void;
+  selectedIds: Set<string>;
+  onFileClick: (f: FileRow, e: React.MouseEvent) => void;
+  onFileOpen: (f: FileRow) => void;
+  onBackgroundClick: () => void;
+  onActiveFiles: (files: FileRow[]) => void;
   folderActions: FolderActions;
   fileActions: FileActions;
 }) {
-  const { userId, section, parentId, depth, path, setPath, search, selectedFile, onSelectFile, folderActions, fileActions } = props;
+  const {
+    userId, section, parentId, depth, isLast, path, setPath, search,
+    selectedIds, onFileClick, onFileOpen, onBackgroundClick, onActiveFiles,
+    folderActions, fileActions,
+  } = props;
   const activeChildId = path[depth + 1] ?? null;
 
   const { data, isLoading } = useQuery({
@@ -580,51 +775,132 @@ function Column(props: {
   const folders = (data?.folders ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
   const files = (data?.files ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
 
+  // Publish active files only from the last (deepest) column.
+  useEffect(() => {
+    if (isLast) onActiveFiles(files);
+  }, [isLast, data]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const lassoBaseRef = useRef<Set<string>>(new Set());
+
+  const lassoRect = useLasso(
+    scrollRef,
+    () => Array.from(itemRefs.current.entries()).map(([id, el]) => ({ id, el })),
+    (hit, additive) => {
+      if (!isLast) return;
+      if (additive) {
+        const merged = new Set(lassoBaseRef.current);
+        hit.forEach((id) => merged.add(id));
+        // Apply: call onFileClick with a synthetic? Simpler: rebuild via parent setter — not available here.
+        // We approximate by selecting each via onFileClick with meta.
+        // Instead, send a custom event up through window:
+        window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(merged) } }));
+      } else {
+        window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(hit) } }));
+      }
+    },
+    () => { if (isLast) onBackgroundClick(); },
+  );
+
+  // Capture base selection at lasso start
+  useEffect(() => {
+    const onDown = () => { lassoBaseRef.current = new Set(selectedIds); };
+    const el = scrollRef.current;
+    el?.addEventListener("mousedown", onDown);
+    return () => el?.removeEventListener("mousedown", onDown);
+  }, [selectedIds]);
+
   return (
     <div className="w-72 border-r border-hairline flex flex-col shrink-0 bg-background">
       <div className="px-3 h-8 flex items-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground border-b border-hairline/60">
         {depth === 0 ? "Root" : "Subfolder"}
       </div>
-      <div className="flex-1 overflow-y-auto thin-scroll p-1.5 space-y-0.5">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto thin-scroll p-2 relative select-none">
         {isLoading && <div className="px-3 py-2 text-xs text-muted-foreground">Loading…</div>}
-        {folders.map((f) => (
-          <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
-            <button
-              onClick={() => { onSelectFile(null); setPath([...path.slice(0, depth + 1), f.id]); }}
-              className={cn(
-                "w-full px-3 py-2 text-sm rounded-md flex items-center justify-between gap-2 group transition-colors",
-                activeChildId === f.id ? "bg-surface-2 ring-1 ring-hairline" : "hover:bg-surface-2/60",
-              )}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Folder className="size-4 text-muted-foreground shrink-0" />
-                <span className="truncate font-medium">{f.name}</span>
-              </div>
-              <ChevronRight className="size-3.5 text-muted-foreground/60 shrink-0" />
-            </button>
-          </FolderContextMenu>
-        ))}
-        {files.map((f) => (
-          <FileContextMenu key={f.id} file={f} actions={fileActions}>
-            <button
-              onClick={() => onSelectFile(f)}
-              className={cn(
-                "w-full px-2.5 py-1.5 text-sm rounded-md flex items-center gap-2.5 transition-colors text-left",
-                selectedFile?.id === f.id ? "bg-primary text-primary-foreground" : "hover:bg-surface-2/60",
-              )}
-            >
-              <Thumbnail file={f} className="size-12 rounded-md ring-1 ring-hairline shrink-0" iconClassName="size-6" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{f.name}</div>
-                <div className={cn("text-[10px]", selectedFile?.id === f.id ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                  {formatBytes(f.size)}
-                </div>
-              </div>
-            </button>
-          </FileContextMenu>
-        ))}
+
+        {/* Folders — compact rectangular rows */}
+        {folders.length > 0 && (
+          <div className="space-y-0.5 mb-3">
+            {folders.map((f) => (
+              <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
+                <button
+                  data-drive-item="folder"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onBackgroundClick();
+                    setPath([...path.slice(0, depth + 1), f.id]);
+                  }}
+                  className={cn(
+                    "w-full px-2.5 py-2 text-sm rounded-md flex items-center justify-between gap-2 transition-colors text-left",
+                    activeChildId === f.id ? "bg-surface-2 ring-1 ring-hairline" : "hover:bg-surface-2/60",
+                  )}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Folder className="size-4 text-muted-foreground shrink-0" />
+                    <span className="truncate font-medium">{f.name}</span>
+                  </div>
+                  <ChevronRight className="size-3.5 text-muted-foreground/60 shrink-0" />
+                </button>
+              </FolderContextMenu>
+            ))}
+          </div>
+        )}
+
+        {/* Files — square thumbnail grid */}
+        {files.length > 0 && (
+          <div className="grid grid-cols-2 gap-2">
+            {files.map((f) => {
+              const isSelected = selectedIds.has(f.id);
+              return (
+                <FileContextMenu key={f.id} file={f} actions={fileActions}>
+                  <button
+                    data-drive-item="file"
+                    ref={(el) => {
+                      if (el) itemRefs.current.set(f.id, el);
+                      else itemRefs.current.delete(f.id);
+                    }}
+                    onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
+                    onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
+                    className={cn(
+                      "rounded-lg ring-1 transition-all overflow-hidden text-left bg-surface group",
+                      isSelected
+                        ? "ring-2 ring-primary shadow-pane"
+                        : "ring-hairline hover:ring-foreground/20 hover:shadow-architect",
+                    )}
+                    title={f.name}
+                  >
+                    <div className="aspect-square w-full overflow-hidden bg-surface-2 relative">
+                      <Thumbnail file={f} className="size-full" iconClassName="size-8 opacity-70" />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
+                        className="absolute top-1.5 right-1.5 size-6 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 transition-opacity ring-1 ring-hairline hover:bg-background"
+                        title="Quick Look (Space)"
+                      >
+                        <Eye className="size-3" />
+                      </button>
+                    </div>
+                    <div className="px-2 py-1.5 border-t border-hairline">
+                      <div className="text-[11px] font-medium truncate leading-tight">{f.name}</div>
+                      <div className="text-[9px] text-muted-foreground mt-0.5">{formatBytes(f.size)}</div>
+                    </div>
+                  </button>
+                </FileContextMenu>
+              );
+            })}
+          </div>
+        )}
+
         {!isLoading && folders.length === 0 && files.length === 0 && (
           <div className="px-3 py-6 text-xs text-muted-foreground text-center">Empty</div>
+        )}
+
+        {/* Lasso rectangle */}
+        {lassoRect && (
+          <div
+            className="absolute pointer-events-none bg-primary/10 border border-primary/60 rounded-sm"
+            style={{ left: lassoRect.x, top: lassoRect.y, width: lassoRect.w, height: lassoRect.h }}
+          />
         )}
       </div>
     </div>
@@ -636,13 +912,20 @@ function Column(props: {
 function FlatView(props: {
   userId: string; section: Section; path: (string | null)[]; search: string;
   mode: "list" | "grid";
-  selectedFile: FileRow | null;
+  selectedIds: Set<string>;
+  onFileClick: (f: FileRow, e: React.MouseEvent) => void;
+  onFileOpen: (f: FileRow) => void;
   onOpenFolder: (f: FolderRow) => void;
-  onSelectFile: (f: FileRow) => void;
+  onBackgroundClick: () => void;
+  onActiveFiles: (files: FileRow[]) => void;
   folderActions: FolderActions;
   fileActions: FileActions;
 }) {
-  const { userId, section, path, search, mode, selectedFile, onOpenFolder, onSelectFile, folderActions, fileActions } = props;
+  const {
+    userId, section, path, search, mode, selectedIds,
+    onFileClick, onFileOpen, onOpenFolder, onBackgroundClick, onActiveFiles,
+    folderActions, fileActions,
+  } = props;
   const parentId = path[path.length - 1];
 
   const { data, isLoading } = useQuery({
@@ -666,8 +949,32 @@ function FlatView(props: {
   const folders = (data?.folders ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
   const files = (data?.files ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
 
+  useEffect(() => { onActiveFiles(files); }, [data]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const lassoBaseRef = useRef<Set<string>>(new Set());
+
+  const lassoRect = useLasso(
+    scrollRef,
+    () => Array.from(itemRefs.current.entries()).map(([id, el]) => ({ id, el })),
+    (hit, additive) => {
+      const merged = additive ? new Set(lassoBaseRef.current) : new Set<string>();
+      hit.forEach((id) => merged.add(id));
+      window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(merged) } }));
+    },
+    onBackgroundClick,
+  );
+
+  useEffect(() => {
+    const onDown = () => { lassoBaseRef.current = new Set(selectedIds); };
+    const el = scrollRef.current;
+    el?.addEventListener("mousedown", onDown);
+    return () => el?.removeEventListener("mousedown", onDown);
+  }, [selectedIds]);
+
   return (
-    <div className="flex-1 overflow-y-auto thin-scroll bg-background">
+    <div ref={scrollRef} className="flex-1 overflow-y-auto thin-scroll bg-background relative select-none">
       {isLoading && <div className="p-8 text-sm text-muted-foreground">Loading…</div>}
 
       {mode === "list" && (
@@ -678,6 +985,7 @@ function FlatView(props: {
           {folders.map((f) => (
             <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
               <button
+                data-drive-item="folder"
                 onDoubleClick={() => onOpenFolder(f)}
                 onClick={() => onOpenFolder(f)}
                 className="w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm hover:bg-surface-2/60 group"
@@ -694,25 +1002,31 @@ function FlatView(props: {
               </button>
             </FolderContextMenu>
           ))}
-          {files.map((f) => (
-            <FileContextMenu key={f.id} file={f} actions={fileActions}>
-              <button
-                onClick={() => onSelectFile(f)}
-                className={cn(
-                  "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm",
-                  selectedFile?.id === f.id ? "bg-surface-2" : "hover:bg-surface-2/60",
-                )}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Thumbnail file={f} className="size-10 rounded ring-1 ring-hairline shrink-0" iconClassName="size-5" />
-                  <span className="truncate font-medium">{f.name}</span>
-                </div>
-                <span className="text-muted-foreground">{formatBytes(f.size)}</span>
-                <span className="text-muted-foreground">{new Date(f.updated_at).toLocaleDateString()}</span>
-                <span></span>
-              </button>
-            </FileContextMenu>
-          ))}
+          {files.map((f) => {
+            const isSelected = selectedIds.has(f.id);
+            return (
+              <FileContextMenu key={f.id} file={f} actions={fileActions}>
+                <button
+                  data-drive-item="file"
+                  ref={(el) => { if (el) itemRefs.current.set(f.id, el); else itemRefs.current.delete(f.id); }}
+                  onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
+                  onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
+                  className={cn(
+                    "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm",
+                    isSelected ? "bg-primary/10 ring-1 ring-primary/40" : "hover:bg-surface-2/60",
+                  )}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Thumbnail file={f} className="size-8 rounded ring-1 ring-hairline shrink-0" iconClassName="size-4" />
+                    <span className="truncate font-medium">{f.name}</span>
+                  </div>
+                  <span className="text-muted-foreground">{formatBytes(f.size)}</span>
+                  <span className="text-muted-foreground">{new Date(f.updated_at).toLocaleDateString()}</span>
+                  <span></span>
+                </button>
+              </FileContextMenu>
+            );
+          })}
           {!isLoading && folders.length === 0 && files.length === 0 && (
             <div className="p-12 text-center text-sm text-muted-foreground">Nothing here yet.</div>
           )}
@@ -720,41 +1034,77 @@ function FlatView(props: {
       )}
 
       {mode === "grid" && (
-        <div className="p-6 grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
-          {folders.map((f) => (
-            <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
-              <button
-                onDoubleClick={() => onOpenFolder(f)}
-                onClick={() => onOpenFolder(f)}
-                className="aspect-[4/5] rounded-lg ring-1 ring-hairline bg-surface hover:bg-surface-2 transition-colors p-4 flex flex-col text-left"
-              >
-                <Folder className="size-8 text-muted-foreground mb-auto" />
-                <div className="text-sm font-medium truncate">{f.name}</div>
-                <div className="text-[10px] text-muted-foreground">Folder</div>
-              </button>
-            </FolderContextMenu>
-          ))}
-          {files.map((f) => (
-            <FileContextMenu key={f.id} file={f} actions={fileActions}>
-              <button
-                onClick={() => onSelectFile(f)}
-                className={cn(
-                  "aspect-[4/5] rounded-lg ring-1 transition-colors overflow-hidden flex flex-col text-left bg-surface",
-                  selectedFile?.id === f.id ? "ring-primary" : "ring-hairline hover:ring-foreground/20",
-                )}
-              >
-                <Thumbnail file={f} className="flex-1 w-full" iconClassName="size-10 opacity-70" />
-                <div className="p-3 border-t border-hairline bg-surface">
-                  <div className="text-sm font-medium truncate">{f.name}</div>
-                  <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
-                </div>
-              </button>
-            </FileContextMenu>
-          ))}
+        <div className="p-6 space-y-6">
+          {folders.length > 0 && (
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-3">Folders</div>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
+                {folders.map((f) => (
+                  <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
+                    <button
+                      data-drive-item="folder"
+                      onDoubleClick={() => onOpenFolder(f)}
+                      onClick={() => onOpenFolder(f)}
+                      className="h-12 rounded-lg ring-1 ring-hairline bg-surface hover:bg-surface-2 transition-colors px-3 flex items-center gap-3 text-left"
+                    >
+                      <Folder className="size-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-medium truncate">{f.name}</span>
+                    </button>
+                  </FolderContextMenu>
+                ))}
+              </div>
+            </div>
+          )}
+          {files.length > 0 && (
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-3">Files</div>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+                {files.map((f) => {
+                  const isSelected = selectedIds.has(f.id);
+                  return (
+                    <FileContextMenu key={f.id} file={f} actions={fileActions}>
+                      <button
+                        data-drive-item="file"
+                        ref={(el) => { if (el) itemRefs.current.set(f.id, el); else itemRefs.current.delete(f.id); }}
+                        onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
+                        onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
+                        className={cn(
+                          "rounded-lg ring-1 transition-all overflow-hidden flex flex-col text-left bg-surface group",
+                          isSelected ? "ring-2 ring-primary shadow-pane" : "ring-hairline hover:ring-foreground/20 hover:shadow-architect",
+                        )}
+                      >
+                        <div className="aspect-square w-full bg-surface-2 relative overflow-hidden">
+                          <Thumbnail file={f} className="size-full" iconClassName="size-10 opacity-70" />
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
+                            className="absolute top-2 right-2 size-7 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 ring-1 ring-hairline hover:bg-background"
+                            title="Quick Look (Space)"
+                          >
+                            <Eye className="size-3.5" />
+                          </button>
+                        </div>
+                        <div className="p-2.5 border-t border-hairline bg-surface">
+                          <div className="text-sm font-medium truncate">{f.name}</div>
+                          <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
+                        </div>
+                      </button>
+                    </FileContextMenu>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {!isLoading && folders.length === 0 && files.length === 0 && (
-            <div className="col-span-full p-12 text-center text-sm text-muted-foreground">Nothing here yet.</div>
+            <div className="p-12 text-center text-sm text-muted-foreground">Nothing here yet.</div>
           )}
         </div>
+      )}
+
+      {lassoRect && (
+        <div
+          className="absolute pointer-events-none bg-primary/10 border border-primary/60 rounded-sm"
+          style={{ left: lassoRect.x, top: lassoRect.y, width: lassoRect.w, height: lassoRect.h }}
+        />
       )}
     </div>
   );
