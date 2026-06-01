@@ -1641,26 +1641,35 @@ function FlatView(props: SharedViewProps & {
   useEffect(() => { onActiveFiles(files); onActiveFolders(folders); }, [data]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const lassoBaseRef = useRef<Set<string>>(new Set());
+  const itemRefs = useRef<Map<string, { el: HTMLElement; kind: "file" | "folder" }>>(new Map());
+  const lassoBaseFiles = useRef<Set<string>>(new Set());
+  const lassoBaseFolders = useRef<Set<string>>(new Set());
 
   const lassoRect = useLasso(
     scrollRef,
-    () => Array.from(itemRefs.current.entries()).map(([id, el]) => ({ id, el })),
-    (hit, additive) => {
-      const merged = additive ? new Set(lassoBaseRef.current) : new Set<string>();
-      hit.forEach((id) => merged.add(id));
-      window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(merged) } }));
+    () => Array.from(itemRefs.current.entries()).map(([id, v]) => ({ id, kind: v.kind, el: v.el })),
+    (hitFiles, hitFolders, additive) => {
+      const mergedFiles = additive
+        ? new Set([...lassoBaseFiles.current, ...hitFiles])
+        : hitFiles;
+      const mergedFolders = additive
+        ? new Set([...lassoBaseFolders.current, ...hitFolders])
+        : hitFolders;
+      window.dispatchEvent(new CustomEvent("drive-lasso-set", { detail: { ids: Array.from(mergedFiles) } }));
+      window.dispatchEvent(new CustomEvent("drive-lasso-set-folders", { detail: { ids: Array.from(mergedFolders) } }));
     },
     onBackgroundClick,
   );
 
   useEffect(() => {
-    const onDown = () => { lassoBaseRef.current = new Set(selectedIds); };
+    const onDown = () => {
+      lassoBaseFiles.current = new Set(selectedIds);
+      lassoBaseFolders.current = new Set(selectedFolderIds);
+    };
     const el = scrollRef.current;
     el?.addEventListener("mousedown", onDown);
     return () => el?.removeEventListener("mousedown", onDown);
-  }, [selectedIds]);
+  }, [selectedIds, selectedFolderIds]);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto thin-scroll bg-background relative select-none">
