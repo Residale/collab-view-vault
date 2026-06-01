@@ -31,6 +31,8 @@ Objectif : un drive **rapide, intuitif, logique**, au niveau de Google Drive / D
 ### Zone centrale
 - 3 modes de vue : **Grille (cards avec preview)**, **Liste (densité confort/compacte)**, **Colonnes (Finder-style)**.
 - Toggle persisté par dossier.
+- **IMPORTANT — Mode Colonnes** : dans chaque colonne, fichiers et dossiers doivent s'afficher **en liste verticale compacte** (une ligne = icône + nom + chevron pour les dossiers), **jamais en cards carrées**. C'est le pattern Finder macOS : navigation rapide en cascade horizontale, chaque colonne = une liste fine. Largeur de colonne resizable + persistée. Preview du fichier sélectionné dans la dernière colonne à droite.
+
 
 ### Panneau droit (preview)
 - N'apparaît **que sur clic simple** d'un fichier (déjà OK).
