@@ -643,6 +643,9 @@ function DrivePage() {
           <Button variant="outline" className="w-full" onClick={() => setFolderDialog(true)} disabled={section !== "my"}>
             <FolderPlus /> New folder
           </Button>
+          <Button variant="outline" className="w-full" onClick={() => setLinkDialogOpen(true)} disabled={section !== "my"}>
+            <LinkIcon /> Add link
+          </Button>
 
           <StorageIndicator userId={user.id} />
 
