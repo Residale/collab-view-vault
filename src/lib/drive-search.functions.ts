@@ -179,3 +179,43 @@ export const getRecentSearches = createServerFn({ method: "GET" })
       .limit(8);
     return (data ?? []) as Array<{ query: string; created_at: string }>;
   });
+
+// ---------- Per-file snippets (for preview highlighting) ----------
+export const getFileSnippets = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      fileId: z.string().uuid(),
+      query: z.string().min(1).max(200),
+      max: z.number().int().min(1).max(20).default(5),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: row, error } = await supabase
+      .from("files")
+      .select("id, content_text")
+      .eq("id", data.fileId)
+      .maybeSingle();
+    if (error) throw error;
+    const text = row?.content_text ?? "";
+    if (!text) return { snippets: [] as string[] };
+
+    const q = data.query.trim().toLowerCase();
+    const lower = text.toLowerCase();
+    const snippets: string[] = [];
+    let from = 0;
+    while (snippets.length < data.max) {
+      const idx = lower.indexOf(q, from);
+      if (idx < 0) break;
+      const start = Math.max(0, idx - 60);
+      const end = Math.min(text.length, idx + q.length + 120);
+      snippets.push(
+        (start > 0 ? "…" : "") +
+          text.slice(start, end).replace(/\s+/g, " ").trim() +
+          (end < text.length ? "…" : ""),
+      );
+      from = idx + q.length;
+    }
+    return { snippets };
+  });
