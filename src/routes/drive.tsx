@@ -1167,3 +1167,129 @@ function FlatView(props: {
     </div>
   );
 }
+
+/* ---------------- Trash view ---------------- */
+
+function TrashView({ userId, invalidate }: { userId: string; invalidate: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["drive", "trash", userId],
+    queryFn: () => listTrash(userId),
+  });
+
+  const folders = data?.folders ?? [];
+  const files = data?.files ?? [];
+  const total = folders.length + files.length;
+
+  const onRestoreFile = async (f: FileRow) => {
+    try { await restoreFile(f.id); invalidate(); toast.success(`"${f.name}" restored`); }
+    catch (e: any) { toast.error(e.message); }
+  };
+  const onRestoreFolder = async (f: FolderRow) => {
+    try { await restoreFolder(f.id); invalidate(); toast.success(`"${f.name}" restored`); }
+    catch (e: any) { toast.error(e.message); }
+  };
+  const onPurgeFile = async (f: FileRow) => {
+    if (!confirm(`Permanently delete "${f.name}"? This cannot be undone.`)) return;
+    try { await deleteFile(f); invalidate(); toast.success("Deleted forever"); }
+    catch (e: any) { toast.error(e.message); }
+  };
+  const onPurgeFolder = async (f: FolderRow) => {
+    if (!confirm(`Permanently delete folder "${f.name}"? This cannot be undone.`)) return;
+    try { await deleteFolder(f.id); invalidate(); toast.success("Deleted forever"); }
+    catch (e: any) { toast.error(e.message); }
+  };
+  const onEmpty = async () => {
+    if (!total) return;
+    if (!confirm(`Empty Trash? ${total} item${total > 1 ? "s" : ""} will be permanently deleted.`)) return;
+    try {
+      await Promise.all([
+        ...files.map((f) => deleteFile(f)),
+        ...folders.map((f) => deleteFolder(f.id)),
+      ]);
+      invalidate();
+      toast.success("Trash emptied");
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const daysSince = (iso: string) => {
+    const ms = Date.now() - new Date(iso).getTime();
+    return Math.max(0, Math.floor(ms / 86_400_000));
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto thin-scroll bg-background">
+      <div className="px-6 py-4 border-b border-hairline flex items-center justify-between gap-4">
+        <div>
+          <div className="text-sm font-semibold">Trash</div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {total === 0 ? "Empty" : `${total} item${total > 1 ? "s" : ""} · auto-deleted after 30 days`}
+          </div>
+        </div>
+        {total > 0 && (
+          <Button size="sm" variant="destructive" onClick={onEmpty}>
+            <Trash2 /> Empty Trash
+          </Button>
+        )}
+      </div>
+
+      {isLoading && <div className="p-8 text-sm text-muted-foreground">Loading…</div>}
+
+      {!isLoading && total === 0 && (
+        <div className="grid place-items-center py-24 text-center">
+          <Trash2 className="size-10 text-muted-foreground/40 mb-3" />
+          <div className="text-sm font-medium">Nothing in Trash</div>
+          <div className="text-xs text-muted-foreground mt-1">Deleted files will appear here for 30 days.</div>
+        </div>
+      )}
+
+      {total > 0 && (
+        <div className="divide-y divide-hairline">
+          <div className="grid grid-cols-[1fr_120px_160px_120px] gap-4 px-6 h-9 items-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground sticky top-0 bg-background z-10 border-b border-hairline">
+            <span>Name</span><span>Size</span><span>Deleted</span><span className="text-right">Actions</span>
+          </div>
+          {folders.map((f) => (
+            <div key={f.id} className="grid grid-cols-[1fr_120px_160px_120px] gap-4 px-6 h-12 items-center text-sm hover:bg-surface-2/40">
+              <div className="flex items-center gap-3 min-w-0">
+                <Folder className="size-4 text-muted-foreground" />
+                <span className="truncate font-medium">{f.name}</span>
+              </div>
+              <span className="text-muted-foreground">—</span>
+              <span className="text-muted-foreground">
+                {f.deleted_at ? `${daysSince(f.deleted_at)}d ago · ${30 - daysSince(f.deleted_at)}d left` : "—"}
+              </span>
+              <div className="flex items-center justify-end gap-1">
+                <button onClick={() => onRestoreFolder(f)} className="h-7 px-2 rounded-md text-xs hover:bg-surface-2 inline-flex items-center gap-1.5" title="Restore">
+                  <RotateCcw className="size-3" /> Restore
+                </button>
+                <button onClick={() => onPurgeFolder(f)} className="h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="Delete forever">
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+          {files.map((f) => (
+            <div key={f.id} className="grid grid-cols-[1fr_120px_160px_120px] gap-4 px-6 h-12 items-center text-sm hover:bg-surface-2/40">
+              <div className="flex items-center gap-3 min-w-0">
+                <Thumbnail file={f} className="size-8 rounded ring-1 ring-hairline shrink-0" iconClassName="size-4" />
+                <span className="truncate font-medium">{f.name}</span>
+              </div>
+              <span className="text-muted-foreground">{formatBytes(f.size)}</span>
+              <span className="text-muted-foreground">
+                {f.deleted_at ? `${daysSince(f.deleted_at)}d ago · ${30 - daysSince(f.deleted_at)}d left` : "—"}
+              </span>
+              <div className="flex items-center justify-end gap-1">
+                <button onClick={() => onRestoreFile(f)} className="h-7 px-2 rounded-md text-xs hover:bg-surface-2 inline-flex items-center gap-1.5" title="Restore">
+                  <RotateCcw className="size-3" /> Restore
+                </button>
+                <button onClick={() => onPurgeFile(f)} className="h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="Delete forever">
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
