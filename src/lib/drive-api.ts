@@ -27,7 +27,7 @@ export type FileRow = {
 export type Section = "my" | "shared-with-me" | "shared-by-me" | "recent" | "starred" | "trash";
 
 export async function listFolders(parentId: string | null, ownerId: string) {
-  let q = supabase.from("folders").select("*").eq("owner_id", ownerId).order("name");
+  let q = supabase.from("folders").select("*").eq("owner_id", ownerId).is("deleted_at", null).order("name");
   q = parentId === null ? q.is("parent_id", null) : q.eq("parent_id", parentId);
   const { data, error } = await q;
   if (error) throw error;
@@ -35,7 +35,7 @@ export async function listFolders(parentId: string | null, ownerId: string) {
 }
 
 export async function listFiles(folderId: string | null, ownerId: string) {
-  let q = supabase.from("files").select("*").eq("owner_id", ownerId).order("name");
+  let q = supabase.from("files").select("*").eq("owner_id", ownerId).is("deleted_at", null).order("name");
   q = folderId === null ? q.is("folder_id", null) : q.eq("folder_id", folderId);
   const { data, error } = await q;
   if (error) throw error;
@@ -49,8 +49,8 @@ export async function listSharedWithMe(userId: string) {
   const fileIds = shares!.filter(s => s.target_type === "file").map(s => s.target_id);
   const folderIds = shares!.filter(s => s.target_type === "folder").map(s => s.target_id);
   const [filesRes, foldersRes] = await Promise.all([
-    fileIds.length ? supabase.from("files").select("*").in("id", fileIds) : Promise.resolve({ data: [], error: null }),
-    folderIds.length ? supabase.from("folders").select("*").in("id", folderIds) : Promise.resolve({ data: [], error: null }),
+    fileIds.length ? supabase.from("files").select("*").in("id", fileIds).is("deleted_at", null) : Promise.resolve({ data: [], error: null }),
+    folderIds.length ? supabase.from("folders").select("*").in("id", folderIds).is("deleted_at", null) : Promise.resolve({ data: [], error: null }),
   ]);
   return {
     files: (filesRes.data ?? []) as FileRow[],
@@ -65,8 +65,8 @@ export async function listSharedByMe(userId: string) {
   const fileIds = [...new Set(shares!.filter(s => s.target_type === "file").map(s => s.target_id))];
   const folderIds = [...new Set(shares!.filter(s => s.target_type === "folder").map(s => s.target_id))];
   const [filesRes, foldersRes] = await Promise.all([
-    fileIds.length ? supabase.from("files").select("*").in("id", fileIds) : Promise.resolve({ data: [], error: null }),
-    folderIds.length ? supabase.from("folders").select("*").in("id", folderIds) : Promise.resolve({ data: [], error: null }),
+    fileIds.length ? supabase.from("files").select("*").in("id", fileIds).is("deleted_at", null) : Promise.resolve({ data: [], error: null }),
+    folderIds.length ? supabase.from("folders").select("*").in("id", folderIds).is("deleted_at", null) : Promise.resolve({ data: [], error: null }),
   ]);
   return {
     files: (filesRes.data ?? []) as FileRow[],
@@ -77,7 +77,7 @@ export async function listSharedByMe(userId: string) {
 
 export async function listRecent(userId: string) {
   const { data, error } = await supabase
-    .from("files").select("*").eq("owner_id", userId)
+    .from("files").select("*").eq("owner_id", userId).is("deleted_at", null)
     .order("updated_at", { ascending: false }).limit(50);
   if (error) throw error;
   return (data ?? []) as FileRow[];
@@ -85,10 +85,24 @@ export async function listRecent(userId: string) {
 
 export async function listStarred(userId: string) {
   const { data, error } = await supabase
-    .from("files").select("*").eq("owner_id", userId).eq("starred", true).order("name");
+    .from("files").select("*").eq("owner_id", userId).eq("starred", true).is("deleted_at", null).order("name");
   if (error) throw error;
   return (data ?? []) as FileRow[];
 }
+
+export async function listTrash(userId: string) {
+  const [files, folders] = await Promise.all([
+    supabase.from("files").select("*").eq("owner_id", userId).not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
+    supabase.from("folders").select("*").eq("owner_id", userId).not("deleted_at", "is", null).order("deleted_at", { ascending: false }),
+  ]);
+  if (files.error) throw files.error;
+  if (folders.error) throw folders.error;
+  return {
+    files: (files.data ?? []) as FileRow[],
+    folders: (folders.data ?? []) as FolderRow[],
+  };
+}
+
 
 export async function createFolder(ownerId: string, parentId: string | null, name: string) {
   const { data, error } = await supabase.from("folders").insert({
