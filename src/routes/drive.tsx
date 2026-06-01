@@ -80,9 +80,7 @@ function DrivePage() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["drive"] });
 
-  if (loading || !user) {
-    return <div className="min-h-screen grid place-items-center text-muted-foreground text-sm">Loading…</div>;
-  }
+
 
   const handleUpload = async (files: FileList | File[] | null) => {
     if (!files) return;
