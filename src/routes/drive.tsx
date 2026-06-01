@@ -1709,15 +1709,8 @@ function FlatView(props: SharedViewProps & {
                             mime={f.mime_type}
                             className="absolute top-2 left-2"
                           />
-                          <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                          <div className="absolute top-2 right-2">
                             <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
-                            <button
-                              onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
-                              className="size-7 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 ring-1 ring-hairline hover:bg-background"
-                              title="Quick Look (Space)"
-                            >
-                              <Eye className="size-3.5" />
-                            </button>
                           </div>
                         </div>
 
