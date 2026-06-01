@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { fileKind, getSignedUrl, formatBytes, type FileRow } from "@/lib/drive-api";
+import { fileKind, getSignedUrl, formatBytes, isExternalLink, externalUrl, type FileRow } from "@/lib/drive-api";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 import { Button } from "@/components/ui/button";
 import {
   Download, Share2, Star, X, ChevronLeft, ChevronRight,
-  ZoomIn, ZoomOut, RotateCcw,
+  ZoomIn, ZoomOut, RotateCcw, ExternalLink as ExternalIcon,
 } from "lucide-react";
 
 export function QuickLook({
