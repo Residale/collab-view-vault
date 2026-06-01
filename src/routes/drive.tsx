@@ -1235,6 +1235,7 @@ type SharedViewProps = {
   search: string;
   selectedIds: Set<string>;
   selectedFolderIds: Set<string>;
+  previewFileId?: string | null;
   onFileClick: (f: FileRow, e: React.MouseEvent) => void;
   onFileOpen: (f: FileRow) => void;
   onBackgroundClick: () => void;
