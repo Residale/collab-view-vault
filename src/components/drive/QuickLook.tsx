@@ -28,10 +28,13 @@ export function QuickLook({
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const imgWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setUrl(null);
     setTextContent(null);
+    setZoom(1);
     if (!file) return;
     let cancelled = false;
     getSignedUrl(file.storage_path).then((u) => { if (!cancelled) setUrl(u); }).catch(() => {});
