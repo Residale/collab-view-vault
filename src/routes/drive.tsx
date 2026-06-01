@@ -674,6 +674,8 @@ function DrivePage() {
           { id: "theme", label: dark ? "Switch to light mode" : "Switch to dark mode", icon: dark ? <Sun className="size-4" /> : <Moon className="size-4" />, onSelect: () => setDark((v) => !v), keywords: "theme dark light" },
         ]}
       />
+
+      <CheatsheetDialog open={cheatsheetOpen} onOpenChange={setCheatsheetOpen} />
     </div>
   );
 }
