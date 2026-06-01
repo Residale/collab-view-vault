@@ -107,6 +107,8 @@ function DrivePage() {
   };
   const clearSelection = () => { setSelectedIds(new Set()); setLastSelectedId(null); };
 
+  // Reset state when switching section
+  useEffect(() => { setPath([null]); clearSelection(); setQuickLook(null); }, [section]);
 
   // Theme
   useEffect(() => {
