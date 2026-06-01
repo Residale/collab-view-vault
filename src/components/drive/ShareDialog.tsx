@@ -39,7 +39,16 @@ export function ShareDialog({
     setShares(await listSharesFor(target.type, target.id));
   };
 
+  const [link, setLink] = useState<PublicLink | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [expiry, setExpiry] = useState<string>("never");
+
   useEffect(() => { refresh(); }, [target?.id]);
+
+  useEffect(() => {
+    if (!target || target.type !== "file") { setLink(null); return; }
+    getPublicLink(target.id).then(setLink).catch(() => setLink(null));
+  }, [target?.id, target?.type]);
 
   useEffect(() => {
     if (!email || email.length < 2) { setResults([]); return; }
