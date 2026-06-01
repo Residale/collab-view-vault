@@ -372,8 +372,11 @@ function DrivePage() {
               path={path}
               setPath={setPath}
               search={search}
-              selectedFile={selectedFile}
-              onSelectFile={setSelectedFile}
+              selectedIds={selectedIds}
+              onFileClick={handleFileClick}
+              onFileOpen={(f) => setQuickLook(f)}
+              onBackgroundClick={clearSelection}
+              onActiveFiles={setActiveFiles}
               folderActions={folderActions}
               fileActions={fileActions}
             />
@@ -384,26 +387,37 @@ function DrivePage() {
               path={path}
               search={search}
               mode={view}
-              selectedFile={selectedFile}
+              selectedIds={selectedIds}
+              onFileClick={handleFileClick}
+              onFileOpen={(f) => setQuickLook(f)}
               onOpenFolder={(f) => setPath([...path, f.id])}
-              onSelectFile={setSelectedFile}
+              onBackgroundClick={clearSelection}
+              onActiveFiles={setActiveFiles}
               folderActions={folderActions}
               fileActions={fileActions}
             />
           )}
-
-          {selectedFile && (
-            <PreviewPane
-              file={selectedFile}
-              onClose={() => setSelectedFile(null)}
-              onShare={fileActions.onShare}
-              onDelete={onDeleteFile}
-              onToggleStar={onStar}
-              onDownload={onDownload}
-            />
-          )}
         </div>
+
+        {/* Selection action bar */}
+        {selectedIds.size > 1 && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-surface ring-1 ring-hairline rounded-full pl-4 pr-1.5 py-1.5 shadow-pane">
+            <span className="text-xs font-medium">{selectedIds.size} selected</span>
+            <Button size="sm" variant="ghost" onClick={clearSelection} className="h-7 rounded-full">Clear</Button>
+            <Button size="sm" variant="destructive" onClick={onDeleteSelection} className="h-7 rounded-full">
+              <Trash2 /> Delete
+            </Button>
+          </div>
+        )}
       </main>
+
+      <QuickLook
+        file={quickLook}
+        onClose={() => setQuickLook(null)}
+        onDownload={onDownload}
+        onShare={fileActions.onShare}
+        onToggleStar={onStar}
+      />
 
       <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} />
       <NewFolderDialog
