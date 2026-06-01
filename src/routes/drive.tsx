@@ -32,6 +32,7 @@ import { CommandPalette } from "@/components/drive/CommandPalette";
 import { CheatsheetDialog } from "@/components/drive/CheatsheetDialog";
 import { SearchBar, type SearchFilters } from "@/components/drive/SearchBar";
 import { SearchResults } from "@/components/drive/SearchResults";
+import { SavedSearchesSection } from "@/components/drive/SavedSearches";
 import { SelectionBar } from "@/components/drive/SelectionBar";
 import { SelectionCheckbox } from "@/components/drive/SelectionCheckbox";
 import { setDragPayload, getDragPayload, isDriveDrag, isExternalFileDrag, type DragPayload } from "@/components/drive/dnd";
@@ -579,6 +580,13 @@ function DrivePage() {
           <NavItem icon={<Star className="size-4" />} label="Starred" active={section === "starred"} onClick={() => setSection("starred")} />
           <NavItem icon={<Trash2 className="size-4" />} label="Trash" active={section === "trash"} onClick={() => setSection("trash")} />
         </nav>
+
+        <SavedSearchesSection
+          userId={user.id}
+          onApply={(q, f) => { setActiveQuery(q); setActiveFilters(f); }}
+        />
+
+
 
 
         <div className="mt-auto p-4 space-y-2">
