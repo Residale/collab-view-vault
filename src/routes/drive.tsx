@@ -1339,7 +1339,7 @@ function Column(props: SharedViewProps & {
 }) {
   const {
     userId, section, parentId, depth, isLast, path, setPath, search,
-    selectedIds, selectedFolderIds,
+    selectedIds, selectedFolderIds, previewFileId,
     onFileClick, onFileOpen, onBackgroundClick, onActiveFiles, onActiveFolders,
     folderActions, fileActions,
     onToggleFolderSelected, onToggleFileSelected,
