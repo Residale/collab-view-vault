@@ -1608,7 +1608,7 @@ function FlatView(props: SharedViewProps & {
 }) {
   const {
     userId, section, path, search, mode,
-    selectedIds, selectedFolderIds,
+    selectedIds, selectedFolderIds, previewFileId,
     onFileClick, onFileOpen, onOpenFolder, onBackgroundClick,
     onActiveFiles, onActiveFolders,
     folderActions, fileActions,
