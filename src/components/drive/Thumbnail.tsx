@@ -36,12 +36,14 @@ export function Thumbnail({
   /** Max width/height (px) for image thumbnails. Lower = faster. */
   previewSize?: number;
 }) {
+  const external = isExternalLink(file);
   const kind = fileKind(file.mime_type, file.name);
-  const isSheet = kind === "spreadsheet" || /\.(xlsx|xls|csv|tsv|ods)$/i.test(file.name);
+  const isSheet = !external && (kind === "spreadsheet" || /\.(xlsx|xls|csv|tsv|ods)$/i.test(file.name));
   const isText =
+    !external &&
     (kind === "doc" || kind === "code") &&
     /\.(txt|md|json|csv|tsv|log|js|ts|tsx|jsx|py|html|css|go|rs|xml|yml|yaml)$/i.test(file.name);
-  const wantsPreview = kind === "image" || kind === "video" || kind === "pdf" || isSheet || isText;
+  const wantsPreview = !external && (kind === "image" || kind === "video" || kind === "pdf" || isSheet || isText);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [pdfImage, setPdfImage] = useState<string | null>(null);
