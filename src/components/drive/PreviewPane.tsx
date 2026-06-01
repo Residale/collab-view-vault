@@ -98,7 +98,7 @@ export function PreviewPane({
           {url && isSheet && <div className="size-full pointer-events-none overflow-hidden"><SheetPreview url={url} /></div>}
           {url && isText && textContent !== null && (
             <pre className="size-full overflow-hidden p-3 text-[10px] font-mono text-left whitespace-pre-wrap pointer-events-none">
-              {textContent.slice(0, 1200)}
+              <HighlightedText text={textContent.slice(0, 1200)} query={searchQuery} />
             </pre>
           )}
           {(!url || ["other", "archive", "doc"].includes(kind)) && !isText && (
