@@ -606,7 +606,7 @@ function Column(props: {
                 selectedFile?.id === f.id ? "bg-primary text-primary-foreground" : "hover:bg-surface-2/60",
               )}
             >
-              <FileIcon name={f.name} mime={f.mime_type} className="size-7" />
+              <Thumbnail file={f} className="size-9 rounded-md ring-1 ring-hairline shrink-0" iconClassName="size-5" />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{f.name}</div>
                 <div className={cn("text-[10px]", selectedFile?.id === f.id ? "text-primary-foreground/70" : "text-muted-foreground")}>
