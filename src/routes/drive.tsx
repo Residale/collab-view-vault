@@ -827,20 +827,38 @@ function Breadcrumb({ section, path, setPath }: { section: Section; path: (strin
     my: "My Drive", "shared-with-me": "Shared with me", "shared-by-me": "Shared by me",
     recent: "Recent", starred: "Starred", trash: "Trash",
   }[section];
+  const isRoot = path.length <= 1;
   return (
-    <nav className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground min-w-0">
-      <button onClick={() => setPath([null])} className="hover:text-foreground">{sectionLabel}</button>
-      {path.slice(1).map((id, i) => (
-        <span key={id} className="flex items-center gap-1.5">
-          <ChevronRight className="size-3.5 text-muted-foreground/50" />
-          <button
-            onClick={() => setPath(path.slice(0, i + 2))}
-            className={cn(i === path.length - 2 ? "text-foreground" : "hover:text-foreground")}
-          >
-            <FolderName id={id!} />
-          </button>
-        </span>
-      ))}
+    <nav
+      className="flex items-center gap-1 text-base font-medium min-w-0 w-full overflow-x-auto scrollbar-none whitespace-nowrap"
+      style={{ scrollbarWidth: "none" }}
+    >
+      <button
+        onClick={() => setPath([null])}
+        className={cn(
+          "px-2 py-1 rounded-md hover:bg-surface-2 shrink-0",
+          isRoot ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        {sectionLabel}
+      </button>
+      {path.slice(1).map((id, i) => {
+        const isLast = i === path.length - 2;
+        return (
+          <span key={id} className="flex items-center gap-1 shrink-0">
+            <ChevronRight className="size-4 text-muted-foreground/60 shrink-0" />
+            <button
+              onClick={() => setPath(path.slice(0, i + 2))}
+              className={cn(
+                "px-2 py-1 rounded-md hover:bg-surface-2 max-w-[240px] truncate",
+                isLast ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <FolderName id={id!} />
+            </button>
+          </span>
+        );
+      })}
     </nav>
   );
 }
