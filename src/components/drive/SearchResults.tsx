@@ -106,7 +106,7 @@ export function SearchResults({
                 className="group flex flex-col gap-2 text-left"
               >
                 <div className="aspect-square rounded-lg bg-surface-2 ring-1 ring-hairline overflow-hidden grid place-items-center group-hover:ring-primary/30 transition-all">
-                  <Thumbnail file={f as FileRow} size="md" />
+                  <Thumbnail file={f as FileRow} className="size-20" iconClassName="size-8" />
                 </div>
                 <div className="px-1">
                   <div className="flex items-center gap-1.5">
