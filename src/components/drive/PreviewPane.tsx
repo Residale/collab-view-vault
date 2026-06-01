@@ -1,20 +1,25 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fileKind, getSignedUrl, isExternalLink, externalUrl, type FileRow, formatBytes } from "@/lib/drive-api";
 import { Button } from "@/components/ui/button";
-import { Download, Share2, Star, Trash2, X, Maximize2, Link2, MessageSquare, ExternalLink as ExternalIcon } from "lucide-react";
+import { Download, Share2, Star, Trash2, X, Maximize2, Link2, MessageSquare, ExternalLink as ExternalIcon, Search as SearchIcon } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 import { FileTagsEditor } from "./Tags";
 import { CommentsSection } from "./CommentsSection";
+import { HighlightedText } from "./Highlight";
+import { getFileSnippets } from "@/lib/drive-search.functions";
 
 export function PreviewPane({
   file,
   currentUserId,
+  searchQuery,
   onClose,
   onShare, onDelete, onToggleStar, onDownload, onCopyLink, onOpenFullscreen,
 }: {
   file: FileRow | null;
   currentUserId: string;
+  searchQuery?: string;
   onClose?: () => void;
   onShare: (f: FileRow) => void;
   onDelete: (f: FileRow) => void;
