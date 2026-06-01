@@ -1112,11 +1112,14 @@ function Column(props: {
                     )}
                     title={f.name}
                   >
-                    <FileIcon
-                      name={f.name}
-                      mime={f.mime_type}
-                      className="size-7 rounded-md"
-                    />
+                    <div className="relative size-8 rounded-md overflow-hidden ring-1 ring-hairline bg-surface-2 shrink-0">
+                      <Thumbnail file={f} className="size-full" iconClassName="size-4 opacity-70" />
+                      <FileTypeBadge
+                        name={f.name}
+                        mime={f.mime_type}
+                        className="absolute -bottom-0.5 -right-0.5 size-3.5 rounded ring-1 ring-background"
+                      />
+                    </div>
 
                     <div className="min-w-0 flex-1">
                       <div className="text-[13px] font-medium truncate leading-tight">{f.name}</div>
@@ -1263,7 +1266,14 @@ function FlatView(props: {
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <FileIcon name={f.name} mime={f.mime_type} className="size-8 rounded-md" />
+                    <div className="relative size-9 rounded-md overflow-hidden ring-1 ring-hairline bg-surface-2 shrink-0">
+                      <Thumbnail file={f} className="size-full" iconClassName="size-4 opacity-70" />
+                      <FileTypeBadge
+                        name={f.name}
+                        mime={f.mime_type}
+                        className="absolute -bottom-0.5 -right-0.5 size-3.5 rounded ring-1 ring-background"
+                      />
+                    </div>
                     <span className="truncate font-medium">{f.name}</span>
                   </div>
                   <span className="text-muted-foreground">{formatBytes(f.size)}</span>
