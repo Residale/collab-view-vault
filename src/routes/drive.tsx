@@ -127,9 +127,11 @@ function DrivePage() {
     setSelectedIds(new Set(ids.slice(from, to + 1)));
   };
   const handleFileClick = (file: FileRow, e: React.MouseEvent) => {
+    // Plain click → just preview. NEVER mutate selection on plain click —
+    // selection is opt-in via the checkbox icon on each row/tile.
     if (e.metaKey || e.ctrlKey) toggleInSelection(file.id);
     else if (e.shiftKey) selectRange(file.id);
-    else selectOnly(file.id);
+    else setPreviewFile(file);
   };
   const clearSelection = () => {
     setSelectedIds(new Set());
