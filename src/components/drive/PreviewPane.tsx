@@ -221,3 +221,27 @@ function Meta({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function ContentMatches({ fileId, query }: { fileId: string; query: string }) {
+  const { data } = useQuery({
+    queryKey: ["file-snippets", fileId, query],
+    queryFn: () => getFileSnippets({ data: { fileId, query, max: 5 } }),
+    staleTime: 60_000,
+  });
+  const snippets = data?.snippets ?? [];
+  if (snippets.length === 0) return null;
+  return (
+    <div className="rounded-lg ring-1 ring-hairline bg-surface p-3 space-y-2">
+      <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+        <SearchIcon className="size-3" /> Matches for "{query}"
+      </div>
+      <ul className="space-y-2">
+        {snippets.map((s, i) => (
+          <li key={i} className="text-xs leading-relaxed text-foreground/80">
+            <HighlightedText text={s} query={query} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
