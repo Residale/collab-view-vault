@@ -316,13 +316,16 @@ function DrivePage() {
             />
           )}
 
-          <PreviewPane
-            file={selectedFile}
-            onShare={fileActions.onShare}
-            onDelete={onDeleteFile}
-            onToggleStar={onStar}
-            onDownload={onDownload}
-          />
+          {selectedFile && (
+            <PreviewPane
+              file={selectedFile}
+              onClose={() => setSelectedFile(null)}
+              onShare={fileActions.onShare}
+              onDelete={onDeleteFile}
+              onToggleStar={onStar}
+              onDownload={onDownload}
+            />
+          )}
         </div>
       </main>
 

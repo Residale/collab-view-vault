@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { fileKind, getSignedUrl, type FileRow, formatBytes } from "@/lib/drive-api";
 import { Button } from "@/components/ui/button";
-import { Download, Share2, Star, Trash2 } from "lucide-react";
+import { Download, Share2, Star, Trash2, X } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 
 export function PreviewPane({
   file,
+  onClose,
   onShare, onDelete, onToggleStar, onDownload,
 }: {
   file: FileRow | null;
+  onClose?: () => void;
   onShare: (f: FileRow) => void;
   onDelete: (f: FileRow) => void;
   onToggleStar: (f: FileRow) => void;
@@ -55,8 +57,18 @@ export function PreviewPane({
   const isSheet = kind === "spreadsheet" || /\.(xlsx|xls|csv|tsv|ods)$/i.test(file.name);
 
   return (
-    <div className="flex-1 bg-surface-2 overflow-y-auto thin-scroll">
-      <div className="p-8 max-w-3xl mx-auto">
+    <div className="w-[420px] shrink-0 border-l border-hairline bg-surface-2 overflow-y-auto thin-scroll relative">
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 z-10 size-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-surface ring-1 ring-hairline bg-surface-2"
+          title="Close preview"
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
+      <div className="p-6">
+
         <div className="w-full aspect-[4/5] bg-surface rounded-xl ring-1 ring-hairline grid place-items-center mb-8 overflow-hidden shadow-pane">
           {url && kind === "image" && <img src={url} alt={file.name} className="size-full object-contain" />}
           {url && kind === "video" && <video src={url} controls className="size-full" />}
