@@ -41,6 +41,7 @@ export function SearchResults({
   onOpenFolder: (f: FolderRow) => void;
   onClear: () => void;
 }) {
+  const qc = useQueryClient();
   const after = rangeToISO(filters.modifiedRange);
   const { min, max } = rangeToSize(filters.sizeRange);
 
