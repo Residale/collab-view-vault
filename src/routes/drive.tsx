@@ -360,7 +360,9 @@ function DrivePage() {
           <NavItem icon={<Send className="size-4" />} label="Shared by me" active={section === "shared-by-me"} onClick={() => setSection("shared-by-me")} />
           <NavItem icon={<Clock className="size-4" />} label="Recent" active={section === "recent"} onClick={() => setSection("recent")} />
           <NavItem icon={<Star className="size-4" />} label="Starred" active={section === "starred"} onClick={() => setSection("starred")} />
+          <NavItem icon={<Trash2 className="size-4" />} label="Trash" active={section === "trash"} onClick={() => setSection("trash")} />
         </nav>
+
 
         <div className="mt-auto p-4 space-y-3">
           <Button className="w-full" onClick={() => fileInputRef.current?.click()}>
