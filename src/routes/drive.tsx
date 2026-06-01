@@ -73,8 +73,11 @@ function DrivePage() {
   // Files visible in the active container, used for shift-range and lasso.
   const [activeFiles, setActiveFiles] = useState<FileRow[]>([]);
   const [activeFolders, setActiveFolders] = useState<FolderRow[]>([]);
-  // Quick Look modal (Space / double-click)
+  // Quick Look modal (Space / double-click / "Open" button)
   const [quickLook, setQuickLook] = useState<FileRow | null>(null);
+  // Right-side preview pane — set by a single click on a file.
+  // Independent from `selectedIds` (selection is only via the checkbox icon).
+  const [previewFile, setPreviewFile] = useState<FileRow | null>(null);
 
   const [shareTarget, setShareTarget] = useState<ShareTargetInput | null>(null);
   const [folderDialog, setFolderDialog] = useState(false);
