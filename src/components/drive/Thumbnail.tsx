@@ -49,9 +49,15 @@ export function Thumbnail({
     setSheetRows(null);
     setTextPreview(null);
     cachedSignedUrl(file.storage_path)
-      .then((u) => { if (!cancelled) setUrl(u); })
-      .catch(() => { if (!cancelled) setFailed(true); });
-    return () => { cancelled = true; };
+      .then((u) => {
+        if (!cancelled) setUrl(u);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [file.storage_path, wantsPreview]);
 
   useEffect(() => {
@@ -78,7 +84,9 @@ export function Thumbnail({
         if (!cancelled) setFailed(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [kind, url]);
 
   useEffect(() => {
@@ -90,13 +98,19 @@ export function Thumbnail({
         const buf = await res.arrayBuffer();
         const wb = XLSX.read(buf, { type: "array" });
         const first = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json<string[]>(first, { header: 1, raw: false, defval: "" });
+        const rows = XLSX.utils.sheet_to_json<string[]>(first, {
+          header: 1,
+          raw: false,
+          defval: "",
+        });
         if (!cancelled) setSheetRows((rows as string[][]).slice(0, 5));
       } catch {
         if (!cancelled) setFailed(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isSheet, url]);
 
   useEffect(() => {
@@ -104,9 +118,15 @@ export function Thumbnail({
     let cancelled = false;
     fetch(url)
       .then((r) => r.text())
-      .then((t) => { if (!cancelled) setTextPreview(t.slice(0, 420)); })
-      .catch(() => { if (!cancelled) setFailed(true); });
-    return () => { cancelled = true; };
+      .then((t) => {
+        if (!cancelled) setTextPreview(t.slice(0, 420));
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isSheet, isText, url]);
 
   if (wantsPreview && !failed) {
@@ -134,31 +154,32 @@ export function Thumbnail({
         {kind === "pdf" && pdfImage && (
           <img src={pdfImage} alt={file.name} className="size-full object-cover object-top" />
         )}
-        {isSheet && sheetRows && (
-          <MiniSheet rows={sheetRows} />
-        )}
-        {!isSheet && isText && textPreview && (
-          <MiniText text={textPreview} />
-        )}
+        {isSheet && sheetRows && <MiniSheet rows={sheetRows} />}
+        {!isSheet && isText && textPreview && <MiniText text={textPreview} />}
         {!url && (
           <div className="size-full grid place-items-center">
-            <FileIcon name={file.name} mime={file.mime_type} className={cn("opacity-60", iconClassName)} />
+            <FileIcon
+              name={file.name}
+              mime={file.mime_type}
+              className={cn("opacity-60", iconClassName)}
+            />
           </div>
         )}
       </div>
     );
   }
 
-  return (
-    <DocumentThumb file={file} className={className} iconClassName={iconClassName} />
-  );
+  return <DocumentThumb file={file} className={className} iconClassName={iconClassName} />;
 }
 
 function MiniSheet({ rows }: { rows: string[][] }) {
   const maxCols = Math.max(3, ...rows.map((row) => row.length));
   return (
     <div className="size-full overflow-hidden bg-surface p-1">
-      <div className="grid gap-px" style={{ gridTemplateColumns: `repeat(${Math.min(maxCols, 4)}, minmax(0, 1fr))` }}>
+      <div
+        className="grid gap-px"
+        style={{ gridTemplateColumns: `repeat(${Math.min(maxCols, 4)}, minmax(0, 1fr))` }}
+      >
         {Array.from({ length: Math.min(rows.length || 4, 5) }).flatMap((_, rowIndex) =>
           Array.from({ length: Math.min(maxCols, 4) }).map((__, colIndex) => (
             <div
@@ -181,11 +202,18 @@ function MiniText({ text }: { text: string }) {
   return (
     <div className="size-full overflow-hidden bg-surface p-1.5 text-left">
       <div className="space-y-1">
-        {text.split(/\n+/).filter(Boolean).slice(0, 5).map((line, index) => (
-          <div key={`${index}-${line}`} className="h-1.5 truncate rounded-sm bg-foreground/15 text-[0px]">
-            {line}
-          </div>
-        ))}
+        {text
+          .split(/\n+/)
+          .filter(Boolean)
+          .slice(0, 5)
+          .map((line, index) => (
+            <div
+              key={`${index}-${line}`}
+              className="h-1.5 truncate rounded-sm bg-foreground/15 text-[0px]"
+            >
+              {line}
+            </div>
+          ))}
       </div>
     </div>
   );
@@ -210,7 +238,11 @@ function DocumentThumb({
         <div className="h-1 rounded bg-foreground/15" />
       </div>
       <div className="relative grid place-items-center gap-0.5">
-        <FileIcon name={file.name} mime={file.mime_type} className={cn("bg-surface/80", iconClassName)} />
+        <FileIcon
+          name={file.name}
+          mime={file.mime_type}
+          className={cn("bg-surface/80", iconClassName)}
+        />
         <span className="text-[7px] font-mono font-semibold text-muted-foreground">{ext}</span>
       </div>
     </div>
