@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { fileKind, getSignedUrl, formatBytes, type FileRow } from "@/lib/drive-api";
+import { fileKind, getSignedUrl, formatBytes, isExternalLink, externalUrl, type FileRow } from "@/lib/drive-api";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 import { Button } from "@/components/ui/button";
 import {
   Download, Share2, Star, X, ChevronLeft, ChevronRight,
-  ZoomIn, ZoomOut, RotateCcw,
+  ZoomIn, ZoomOut, RotateCcw, ExternalLink as ExternalIcon,
 } from "lucide-react";
 
 export function QuickLook({
@@ -31,20 +31,23 @@ export function QuickLook({
   const [zoom, setZoom] = useState(1);
   const imgWrapRef = useRef<HTMLDivElement | null>(null);
 
+  const external = !!file && isExternalLink(file);
+  const linkUrl = external && file ? externalUrl(file) : null;
+
   useEffect(() => {
     setUrl(null);
     setTextContent(null);
     setZoom(1);
-    if (!file) return;
+    if (!file || external) return;
     let cancelled = false;
     getSignedUrl(file.storage_path).then((u) => { if (!cancelled) setUrl(u); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [file?.id]);
+  }, [file?.id, external]);
 
   const kind = file ? fileKind(file.mime_type, file.name) : "other";
-  const isText = !!file && (kind === "doc" || kind === "code") &&
+  const isText = !!file && !external && (kind === "doc" || kind === "code") &&
     /\.(txt|md|json|csv|tsv|log|js|ts|tsx|jsx|py|html|css|go|rs|xml|yml|yaml)$/i.test(file.name);
-  const isSheet = !!file && (kind === "spreadsheet" || /\.(xlsx|xls|csv|tsv|ods)$/i.test(file.name));
+  const isSheet = !!file && !external && (kind === "spreadsheet" || /\.(xlsx|xls|csv|tsv|ods)$/i.test(file.name));
 
   useEffect(() => {
     if (!url || !isText) return;
@@ -132,9 +135,15 @@ export function QuickLook({
                   <Button size="sm" variant="ghost" onClick={() => onShare(file)} title="Share">
                     <Share2 />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => onDownload(file)} title="Open / Download">
-                    <Download />
-                  </Button>
+                  {external && linkUrl ? (
+                    <Button size="sm" variant="default" onClick={() => window.open(linkUrl, "_blank", "noopener,noreferrer")} title="Open in new tab">
+                      <ExternalIcon /> Open
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="ghost" onClick={() => onDownload(file)} title="Open / Download">
+                      <Download />
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={onClose} title="Close (Esc)">
                     <X />
                   </Button>
@@ -169,7 +178,19 @@ export function QuickLook({
                     {siblings.findIndex((s) => s.id === file.id) + 1} / {siblings.length}
                   </div>
                 )}
-                {!url && (
+                {external && linkUrl && (
+                  <div className="size-full grid place-items-center p-10">
+                    <div className="text-center max-w-md">
+                      <FileIcon name={file.name} mime={file.mime_type} className="size-20 mx-auto mb-4" />
+                      <div className="text-sm font-medium mb-1">{file.name}</div>
+                      <div className="text-xs text-muted-foreground truncate mb-6">{linkUrl}</div>
+                      <Button onClick={() => window.open(linkUrl, "_blank", "noopener,noreferrer")}>
+                        <ExternalIcon /> Open in new tab
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {!external && !url && (
                   <div className="text-center">
                     <FileIcon name={file.name} mime={file.mime_type} className="size-14 mx-auto mb-3 opacity-60" />
                     <p className="text-xs text-muted-foreground">Loading preview…</p>

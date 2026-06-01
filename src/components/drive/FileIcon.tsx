@@ -3,7 +3,7 @@ import { fileKind, type FileKind } from "@/lib/drive-api";
 import {
   FileText, Image as ImageIcon, Film, Music, FileSpreadsheet,
   FileCode, FileArchive, File as FileGeneric, Presentation,
-  Palette, Type, BookOpen, AppWindow, Database,
+  Palette, Type, BookOpen, AppWindow, Database, Link as LinkIcon,
 } from "lucide-react";
 
 type Style = {
@@ -30,6 +30,7 @@ const STYLES: Record<FileKind, Style> = {
   ebook:        { Icon: BookOpen,       solid: "bg-orange-500 text-white",  soft: "bg-orange-50 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300",   label: "BOOK" },
   executable:   { Icon: AppWindow,      solid: "bg-zinc-700 text-white",    soft: "bg-zinc-100 text-zinc-700 dark:bg-zinc-500/15 dark:text-zinc-300",          label: "APP" },
   data:         { Icon: Database,       solid: "bg-cyan-600 text-white",    soft: "bg-cyan-50 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300",           label: "DATA" },
+  link:         { Icon: LinkIcon,        solid: "bg-sky-500 text-white",     soft: "bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",               label: "LINK" },
   other:        { Icon: FileGeneric,    solid: "bg-zinc-500 text-white",    soft: "bg-zinc-100 text-zinc-700 dark:bg-zinc-500/15 dark:text-zinc-300",          label: "FILE" },
 };
 

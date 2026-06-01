@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { fileKind, getSignedUrl, type FileRow, formatBytes } from "@/lib/drive-api";
+import { fileKind, getSignedUrl, isExternalLink, externalUrl, type FileRow, formatBytes } from "@/lib/drive-api";
 import { Button } from "@/components/ui/button";
-import { Download, Share2, Star, Trash2, X, Maximize2, Link2, MessageSquare } from "lucide-react";
+import { Download, Share2, Star, Trash2, X, Maximize2, Link2, MessageSquare, ExternalLink as ExternalIcon } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 import { FileTagsEditor } from "./Tags";
@@ -26,14 +26,17 @@ export function PreviewPane({
   const [url, setUrl] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
 
+  const external = !!file && isExternalLink(file);
+  const linkUrl = external && file ? externalUrl(file) : null;
+
   useEffect(() => {
     setUrl(null);
     setTextContent(null);
-    if (!file) return;
+    if (!file || external) return;
     let cancelled = false;
     getSignedUrl(file.storage_path).then((u) => { if (!cancelled) setUrl(u); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [file?.id]);
+  }, [file?.id, external]);
 
   const kind = file ? fileKind(file.mime_type, file.name) : "other";
   const isText = file && (kind === "doc" || kind === "code") &&
@@ -69,11 +72,17 @@ export function PreviewPane({
         {/* Compact preview thumbnail (click to open fullscreen) */}
         <button
           type="button"
-          onClick={() => onOpenFullscreen?.(file)}
+          onClick={() => external && linkUrl ? window.open(linkUrl, "_blank", "noopener,noreferrer") : onOpenFullscreen?.(file)}
           className="group w-full aspect-[4/3] bg-surface rounded-xl ring-1 ring-hairline grid place-items-center overflow-hidden relative cursor-zoom-in"
-          title="Open fullscreen"
+          title={external ? "Open in new tab" : "Open fullscreen"}
         >
-          {url && kind === "image" && <img src={url} alt={file.name} className="size-full object-contain" />}
+          {external && (
+            <div className="text-center p-6">
+              <FileIcon name={file.name} mime={file.mime_type} className="size-16 mx-auto mb-3" />
+              <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">External link</div>
+            </div>
+          )}
+          {!external && url && kind === "image" && <img src={url} alt={file.name} className="size-full object-contain" />}
           {url && kind === "video" && <video src={url} className="size-full object-contain" muted />}
           {url && kind === "audio" && (
             <div className="p-6 w-full text-center">
@@ -110,38 +119,44 @@ export function PreviewPane({
 
         {/* Primary action buttons — large, prominent */}
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            size="lg"
-            onClick={() => onOpenFullscreen?.(file)}
-            className="h-11 font-medium"
-          >
-            <Maximize2 /> Open
-          </Button>
-          <Button
-            size="lg"
-            variant="secondary"
-            onClick={() => onShare(file)}
-            className="h-11 font-medium"
-          >
-            <Share2 /> Share
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            onClick={() => onDownload(file)}
-            className="h-11 font-medium"
-          >
-            <Download /> Download
-          </Button>
-          {onCopyLink && (
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => onCopyLink(file)}
-              className="h-11 font-medium"
-            >
-              <Link2 /> Copy link
-            </Button>
+          {external && linkUrl ? (
+            <>
+              <Button
+                size="lg"
+                onClick={() => window.open(linkUrl, "_blank", "noopener,noreferrer")}
+                className="h-11 font-medium col-span-2"
+              >
+                <ExternalIcon /> Open in new tab
+              </Button>
+              <Button size="lg" variant="secondary" onClick={() => onShare(file)} className="h-11 font-medium">
+                <Share2 /> Share
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => { navigator.clipboard.writeText(linkUrl); }}
+                className="h-11 font-medium"
+              >
+                <Link2 /> Copy URL
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="lg" onClick={() => onOpenFullscreen?.(file)} className="h-11 font-medium">
+                <Maximize2 /> Open
+              </Button>
+              <Button size="lg" variant="secondary" onClick={() => onShare(file)} className="h-11 font-medium">
+                <Share2 /> Share
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => onDownload(file)} className="h-11 font-medium">
+                <Download /> Download
+              </Button>
+              {onCopyLink && (
+                <Button size="lg" variant="outline" onClick={() => onCopyLink(file)} className="h-11 font-medium">
+                  <Link2 /> Copy link
+                </Button>
+              )}
+            </>
           )}
         </div>
 

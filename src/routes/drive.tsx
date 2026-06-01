@@ -6,12 +6,13 @@ import {
   ChevronLeft, ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
   Download, Pencil, Trash2, Move, Link2, Sun, Moon, RotateCcw, X,
-  Palette, Check,
+  Palette, Check, Link as LinkIcon,
 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
 import {
-  createFolder, deleteFile, deleteFolder, getSignedUrl, listFiles, listFolders, listRecent,
+  createExternalLink, createFolder, deleteFile, deleteFolder, detectExternalLink, externalUrl,
+  getSignedUrl, isExternalLink, listFiles, listFolders, listRecent,
   listSharedByMe, listSharedWithMe, listStarred, listTrash, moveFile, moveFolder, renameFile, renameFolder,
   restoreFile, restoreFolder, setFolderColor, toggleStar, trashFile, trashFolder, uploadFile,
   type FileRow, type FolderRow, type Section, formatBytes,
@@ -27,6 +28,7 @@ import { QuickLook } from "@/components/drive/QuickLook";
 import { PreviewPane } from "@/components/drive/PreviewPane";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
+import { AddLinkDialog } from "@/components/drive/AddLinkDialog";
 import { RenameDialog } from "@/components/drive/RenameDialog";
 import { MoveDialog } from "@/components/drive/MoveDialog";
 import { CommandPalette } from "@/components/drive/CommandPalette";
@@ -82,6 +84,7 @@ function DrivePage() {
 
   const [shareTarget, setShareTarget] = useState<ShareTargetInput | null>(null);
   const [folderDialog, setFolderDialog] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ kind: "file" | "folder"; id: string; name: string } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ kind: "file" | "folder"; id: string; name: string; currentParent: string | null } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -243,6 +246,10 @@ function DrivePage() {
 
 
   const onDownload = async (f: FileRow) => {
+    if (isExternalLink(f)) {
+      window.open(externalUrl(f), "_blank", "noopener,noreferrer");
+      return;
+    }
     try {
       const url = await getSignedUrl(f.storage_path);
       window.open(url, "_blank");
@@ -250,6 +257,11 @@ function DrivePage() {
   };
 
   const onCopyLink = async (f: FileRow) => {
+    if (isExternalLink(f)) {
+      try { await navigator.clipboard.writeText(externalUrl(f)); toast.success("URL copied"); }
+      catch (e: any) { toast.error(e.message); }
+      return;
+    }
     try {
       const url = await getSignedUrl(f.storage_path, 60 * 60 * 24 * 7); // 7 days
       await navigator.clipboard.writeText(url);
@@ -392,13 +404,38 @@ function DrivePage() {
     if (dragCounter.current <= 0) { dragCounter.current = 0; setDragOver(false); }
   };
   const onDragOver = (e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+    if (e.dataTransfer.types.includes("Files") || e.dataTransfer.types.includes("text/uri-list")) e.preventDefault();
   };
+
+  // Create a shortcut file from a URL (e.g. Google Sheets / Docs / Slides).
+  const handleAddLink = async (rawUrl: string, displayName?: string) => {
+    if (!user) return;
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return;
+    if (!detectExternalLink(trimmed)) { toast.error("Not a valid URL"); return; }
+    if (section !== "my") { toast.error("Switch to My Drive to add a link"); return; }
+    try {
+      const folderId = path[path.length - 1];
+      await createExternalLink(user.id, folderId, trimmed, displayName);
+      toast.success("Link added");
+      invalidate();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
   const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current = 0;
     setDragOver(false);
     if (section !== "my") { toast.error("Switch to My Drive to upload"); return; }
+
+    // URL drop (Google Sheets / Docs / any web link).
+    const uriList = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
+    const looksLikeUrl = uriList && /^https?:\/\//i.test(uriList.trim().split(/\s+/)[0] ?? "");
+    if (looksLikeUrl && (!e.dataTransfer.files || e.dataTransfer.files.length === 0)) {
+      const url = uriList.trim().split(/\s+/)[0];
+      await handleAddLink(url);
+      return;
+    }
 
     // Prefer DataTransferItemList to preserve folder structure.
     const items = e.dataTransfer.items;
@@ -607,6 +644,9 @@ function DrivePage() {
           <Button variant="outline" className="w-full" onClick={() => setFolderDialog(true)} disabled={section !== "my"}>
             <FolderPlus /> New folder
           </Button>
+          <Button variant="outline" className="w-full" onClick={() => setLinkDialogOpen(true)} disabled={section !== "my"}>
+            <LinkIcon /> Add link
+          </Button>
 
           <StorageIndicator userId={user.id} />
 
@@ -800,6 +840,12 @@ function DrivePage() {
             toast.success("Folder created");
           } catch (e: any) { toast.error(e.message); }
         }}
+      />
+
+      <AddLinkDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        onSubmit={async (url, name) => { await handleAddLink(url, name); setLinkDialogOpen(false); }}
       />
 
       <RenameDialog
@@ -1713,7 +1759,8 @@ function FlatView(props: SharedViewProps & {
                           <FileTypeBadge
                             name={f.name}
                             mime={f.mime_type}
-                            className="absolute top-2 left-2"
+                            className="absolute bottom-2 left-2 size-7 rounded-md shadow-md ring-2 ring-background"
+                            iconClassName="size-4"
                           />
                           <div className="absolute top-2 right-2">
                             <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
