@@ -135,9 +135,15 @@ export function QuickLook({
                   <Button size="sm" variant="ghost" onClick={() => onShare(file)} title="Share">
                     <Share2 />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => onDownload(file)} title="Open / Download">
-                    <Download />
-                  </Button>
+                  {external && linkUrl ? (
+                    <Button size="sm" variant="default" onClick={() => window.open(linkUrl, "_blank", "noopener,noreferrer")} title="Open in new tab">
+                      <ExternalIcon /> Open
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="ghost" onClick={() => onDownload(file)} title="Open / Download">
+                      <Download />
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={onClose} title="Close (Esc)">
                     <X />
                   </Button>
