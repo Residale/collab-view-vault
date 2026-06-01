@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getDriveSignedUrl } from "./drive-preview.functions";
 
 export type FolderRow = {
   id: string;
@@ -117,9 +118,7 @@ export async function uploadFile(userId: string, folderId: string | null, file: 
 }
 
 export async function getSignedUrl(path: string, expires = 3600) {
-  const { data, error } = await supabase.storage.from("drive").createSignedUrl(path, expires);
-  if (error) throw error;
-  return data.signedUrl;
+  return getDriveSignedUrl({ data: { path, expires } });
 }
 
 export async function deleteFile(file: FileRow) {
