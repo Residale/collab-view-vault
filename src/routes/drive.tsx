@@ -156,8 +156,26 @@ function DrivePage() {
 
   const onDeleteFile = async (f: FileRow) => {
     if (!confirm(`Delete "${f.name}"?`)) return;
-    try { await deleteFile(f); if (selectedFile?.id === f.id) setSelectedFile(null); invalidate(); toast.success("Deleted"); }
-    catch (e: any) { toast.error(e.message); }
+    try {
+      await deleteFile(f);
+      setSelectedIds((prev) => { const n = new Set(prev); n.delete(f.id); return n; });
+      if (quickLook?.id === f.id) setQuickLook(null);
+      invalidate(); toast.success("Deleted");
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const onDeleteSelection = async () => {
+    const targets = activeFiles.filter((f) => selectedIds.has(f.id));
+    if (!targets.length) return;
+    if (!confirm(`Delete ${targets.length} item${targets.length > 1 ? "s" : ""}?`)) return;
+    const id = toast.loading(`Deleting ${targets.length}…`);
+    let done = 0;
+    for (const f of targets) {
+      try { await deleteFile(f); done++; } catch (e: any) { toast.error(`${f.name}: ${e.message}`); }
+    }
+    clearSelection();
+    invalidate();
+    toast.success(`Deleted ${done}/${targets.length}`, { id });
   };
 
   const onDeleteFolder = async (f: FolderRow) => {
@@ -182,16 +200,32 @@ function DrivePage() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault(); setPaletteOpen(true); return;
       }
-      if (inField) return;
-      if (e.key === "Escape" && selectedFile) { setSelectedFile(null); return; }
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedFile) {
-        e.preventDefault(); onDeleteFile(selectedFile); return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && !inField) {
+        if (activeFiles.length) {
+          e.preventDefault();
+          setSelectedIds(new Set(activeFiles.map((f) => f.id)));
+          setLastSelectedId(activeFiles[activeFiles.length - 1].id);
+        }
+        return;
       }
-      if (e.key === " " && selectedFile) { e.preventDefault(); onDownload(selectedFile); }
+      if (inField) return;
+      if (e.key === "Escape") {
+        if (quickLook) { setQuickLook(null); return; }
+        if (selectedIds.size) { clearSelection(); return; }
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.size) {
+        e.preventDefault(); onDeleteSelection(); return;
+      }
+      // Space = Quick Look (Mac Finder style)
+      if (e.key === " " && selectedFile && !quickLook) {
+        e.preventDefault(); setQuickLook(selectedFile); return;
+      }
+      // Enter = open / download
+      if (e.key === "Enter" && selectedFile) { e.preventDefault(); onDownload(selectedFile); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedFile]);
+  }, [selectedFile, selectedIds, quickLook, activeFiles]);
 
   // Drag & drop
   const onDragEnter = (e: React.DragEvent) => {
