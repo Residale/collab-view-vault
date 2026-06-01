@@ -1,19 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { fileKind, getSignedUrl, formatBytes, type FileRow } from "@/lib/drive-api";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 import { Button } from "@/components/ui/button";
-import { Download, Share2, Star, ExternalLink, X } from "lucide-react";
+import { Download, Share2, Star, ExternalLink, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 export function QuickLook({
   file,
+  siblings = [],
+  onNavigate,
   onClose,
   onDownload,
   onShare,
   onToggleStar,
 }: {
   file: FileRow | null;
+  siblings?: FileRow[];
+  onNavigate?: (f: FileRow) => void;
   onClose: () => void;
   onDownload: (f: FileRow) => void;
   onShare: (f: FileRow) => void;
