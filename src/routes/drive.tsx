@@ -29,6 +29,7 @@ import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
 import { RenameDialog } from "@/components/drive/RenameDialog";
 import { MoveDialog } from "@/components/drive/MoveDialog";
 import { CommandPalette } from "@/components/drive/CommandPalette";
+import { CheatsheetDialog } from "@/components/drive/CheatsheetDialog";
 import { SearchBar, type SearchFilters } from "@/components/drive/SearchBar";
 import { SearchResults } from "@/components/drive/SearchResults";
 import {
