@@ -1661,6 +1661,114 @@ function FlatView(props: SharedViewProps & {
   );
 }
 
+function useFolderDropTarget(
+  folderId: string,
+  onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>,
+) {
+  const [over, setOver] = useState(false);
+  return {
+    over,
+    handlers: {
+      onDragEnter: (e: React.DragEvent) => {
+        if (!isDriveDrag(e) && !isExternalFileDrag(e)) return;
+        e.preventDefault(); e.stopPropagation();
+        setOver(true);
+      },
+      onDragOver: (e: React.DragEvent) => {
+        if (!isDriveDrag(e) && !isExternalFileDrag(e)) return;
+        e.preventDefault(); e.stopPropagation();
+        e.dataTransfer.dropEffect = isDriveDrag(e) ? "move" : "copy";
+      },
+      onDragLeave: () => setOver(false),
+      onDrop: async (e: React.DragEvent) => {
+        if (!isDriveDrag(e)) return;
+        e.preventDefault(); e.stopPropagation();
+        setOver(false);
+        const payload = getDragPayload(e);
+        if (payload) await onDropIntoFolder(folderId, payload);
+      },
+    },
+  };
+}
+
+function FlatFolderRow({
+  folder, isSelected, onOpen, onToggleSelected, onShare,
+  buildDragPayload, onDropIntoFolder,
+}: {
+  folder: FolderRow;
+  isSelected: boolean;
+  onOpen: () => void;
+  onToggleSelected: () => void;
+  onShare: () => void;
+  buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
+  onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+}) {
+  const drop = useFolderDropTarget(folder.id, onDropIntoFolder);
+  return (
+    <div
+      data-drive-item="folder"
+      draggable
+      onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
+      {...drop.handlers}
+      onDoubleClick={onOpen}
+      onClick={onOpen}
+      className={cn(
+        "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm group cursor-pointer transition-colors",
+        drop.over ? "bg-primary/15 ring-1 ring-primary/50"
+          : isSelected ? "bg-primary/10 ring-1 ring-primary/30"
+          : "hover:bg-surface-2/60",
+      )}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <SelectionCheckbox checked={isSelected} onToggle={onToggleSelected} />
+        <FolderIcon color={folder.color} className="size-5" />
+        <span className="truncate font-medium">{folder.name}</span>
+      </div>
+      <span className="text-muted-foreground">—</span>
+      <span className="text-muted-foreground">{new Date(folder.updated_at).toLocaleDateString()}</span>
+      <span className="opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); onShare(); }}>
+        <Share2 className="size-3.5 text-muted-foreground hover:text-foreground" />
+      </span>
+    </div>
+  );
+}
+
+function GridFolderCard({
+  folder, isSelected, onOpen, onToggleSelected,
+  buildDragPayload, onDropIntoFolder,
+}: {
+  folder: FolderRow;
+  isSelected: boolean;
+  onOpen: () => void;
+  onToggleSelected: () => void;
+  buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
+  onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+}) {
+  const drop = useFolderDropTarget(folder.id, onDropIntoFolder);
+  return (
+    <div
+      data-drive-item="folder"
+      draggable
+      onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
+      {...drop.handlers}
+      onDoubleClick={onOpen}
+      onClick={onOpen}
+      className={cn(
+        "h-12 rounded-lg ring-1 bg-surface transition-colors px-3 flex items-center gap-3 text-left cursor-pointer group",
+        drop.over ? "ring-2 ring-primary bg-primary/10"
+          : isSelected ? "ring-2 ring-primary/60"
+          : "ring-hairline hover:bg-surface-2",
+      )}
+    >
+      <SelectionCheckbox checked={isSelected} onToggle={onToggleSelected} />
+      <FolderIcon color={folder.color} className="size-6" />
+      <span className="text-sm font-medium truncate flex-1">{folder.name}</span>
+    </div>
+  );
+}
+
+
+
 /* ---------------- Trash view ---------------- */
 
 function TrashView({ userId, invalidate }: { userId: string; invalidate: () => void }) {
