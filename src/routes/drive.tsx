@@ -1706,6 +1706,7 @@ function FlatView(props: SharedViewProps & {
           })}
           {files.map((f) => {
             const isSelected = selectedIds.has(f.id);
+            const isPreview = previewFileId === f.id;
             return (
               <FileContextMenu key={f.id} file={f} actions={fileActions}>
                 <div
@@ -1717,7 +1718,7 @@ function FlatView(props: SharedViewProps & {
                   onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                   className={cn(
                     "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm cursor-default group",
-                    isSelected ? "bg-primary/10 ring-1 ring-primary/40" : "hover:bg-surface-2/60",
+                    isSelected ? "bg-primary/10 ring-1 ring-primary/40" : isPreview ? "ring-2 ring-primary/70 bg-primary/5" : "hover:bg-surface-2/60",
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
