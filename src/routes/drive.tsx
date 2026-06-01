@@ -127,7 +127,18 @@ function DrivePage() {
     else if (e.shiftKey) selectRange(file.id);
     else selectOnly(file.id);
   };
-  const clearSelection = () => { setSelectedIds(new Set()); setLastSelectedId(null); };
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectedFolderIds(new Set());
+    setLastSelectedId(null);
+  };
+  const toggleFolderInSelection = (id: string) => {
+    setSelectedFolderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   // Lasso selection bridge — child views dispatch a window event to avoid prop drilling.
   useEffect(() => {
