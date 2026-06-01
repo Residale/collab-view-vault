@@ -403,6 +403,23 @@ function DrivePage() {
         ref={fileInputRef} type="file" multiple className="hidden"
         onChange={(e) => { handleUpload(e.target.files); e.target.value = ""; }}
       />
+      <input
+        ref={folderInputRef} type="file" className="hidden"
+        // @ts-expect-error non-standard but widely supported
+        webkitdirectory="" directory=""
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          const entries = files.map((f) => {
+            const rel = (f as any).webkitRelativePath as string | undefined;
+            const segs = rel ? rel.split("/") : [f.name];
+            const relPath = segs.slice(0, -1);
+            return { file: f, relPath };
+          });
+          handleUploadEntries(entries);
+          e.target.value = "";
+        }}
+      />
+
 
       {/* Drag overlay */}
       {dragOver && (
