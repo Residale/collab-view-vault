@@ -806,6 +806,7 @@ function DrivePage() {
             <PreviewPane
               file={previewFile}
               currentUserId={user.id}
+              searchQuery={activeQuery || undefined}
               onClose={() => setPreviewFile(null)}
               onShare={fileActions.onShare}
               onDelete={onDeleteFile}
