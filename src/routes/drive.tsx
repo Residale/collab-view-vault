@@ -1490,7 +1490,7 @@ function Column(props: SharedViewProps & {
                   <div
                     data-drive-item="file"
                     ref={(el) => {
-                      if (el) itemRefs.current.set(f.id, el);
+                      if (el) itemRefs.current.set(f.id, { el, kind: "file" });
                       else itemRefs.current.delete(f.id);
                     }}
                     draggable
