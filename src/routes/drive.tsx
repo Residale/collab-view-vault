@@ -174,38 +174,68 @@ function DrivePage() {
   };
 
   const onDeleteFile = async (f: FileRow) => {
-    if (!confirm(`Delete "${f.name}"?`)) return;
     try {
-      await deleteFile(f);
+      await trashFile(f.id);
       setSelectedIds((prev) => { const n = new Set(prev); n.delete(f.id); return n; });
       if (quickLook?.id === f.id) setQuickLook(null);
-      invalidate(); toast.success("Deleted");
+      invalidate();
+      toast.success(`"${f.name}" moved to Trash`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            try { await restoreFile(f.id); invalidate(); toast.success("Restored"); }
+            catch (e: any) { toast.error(e.message); }
+          },
+        },
+        duration: 6000,
+      });
     } catch (e: any) { toast.error(e.message); }
   };
 
   const onDeleteSelection = async () => {
     const targets = activeFiles.filter((f) => selectedIds.has(f.id));
     if (!targets.length) return;
-    if (!confirm(`Delete ${targets.length} item${targets.length > 1 ? "s" : ""}?`)) return;
-    const id = toast.loading(`Deleting ${targets.length}…`);
+    const id = toast.loading(`Moving ${targets.length} to Trash…`);
     let done = 0;
+    const ids: string[] = [];
     for (const f of targets) {
-      try { await deleteFile(f); done++; } catch (e: any) { toast.error(`${f.name}: ${e.message}`); }
+      try { await trashFile(f.id); ids.push(f.id); done++; } catch (e: any) { toast.error(`${f.name}: ${e.message}`); }
     }
     clearSelection();
     invalidate();
-    toast.success(`Deleted ${done}/${targets.length}`, { id });
+    toast.success(`${done} item${done > 1 ? "s" : ""} moved to Trash`, {
+      id,
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          try {
+            await Promise.all(ids.map((i) => restoreFile(i)));
+            invalidate(); toast.success("Restored");
+          } catch (e: any) { toast.error(e.message); }
+        },
+      },
+      duration: 6000,
+    });
   };
 
   const onDeleteFolder = async (f: FolderRow) => {
-    if (!confirm(`Delete folder "${f.name}"? Its files and subfolders will also be removed.`)) return;
     try {
-      await deleteFolder(f.id);
+      await trashFolder(f.id);
       setPath((p) => p.filter((id) => id !== f.id));
       invalidate();
-      toast.success("Folder deleted");
+      toast.success(`Folder "${f.name}" moved to Trash`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            try { await restoreFolder(f.id); invalidate(); toast.success("Restored"); }
+            catch (e: any) { toast.error(e.message); }
+          },
+        },
+        duration: 6000,
+      });
     } catch (e: any) { toast.error(e.message); }
   };
+
 
   const onStar = async (f: FileRow) => {
     try { await toggleStar(f); invalidate(); } catch (e: any) { toast.error(e.message); }
