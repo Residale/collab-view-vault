@@ -83,6 +83,7 @@ function DrivePage() {
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
 
   const selectedFile = useMemo(
