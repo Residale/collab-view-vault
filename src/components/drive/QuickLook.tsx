@@ -178,7 +178,19 @@ export function QuickLook({
                     {siblings.findIndex((s) => s.id === file.id) + 1} / {siblings.length}
                   </div>
                 )}
-                {!url && (
+                {external && linkUrl && (
+                  <div className="size-full grid place-items-center p-10">
+                    <div className="text-center max-w-md">
+                      <FileIcon name={file.name} mime={file.mime_type} className="size-20 mx-auto mb-4" />
+                      <div className="text-sm font-medium mb-1">{file.name}</div>
+                      <div className="text-xs text-muted-foreground truncate mb-6">{linkUrl}</div>
+                      <Button onClick={() => window.open(linkUrl, "_blank", "noopener,noreferrer")}>
+                        <ExternalIcon /> Open in new tab
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {!external && !url && (
                   <div className="text-center">
                     <FileIcon name={file.name} mime={file.mime_type} className="size-14 mx-auto mb-3 opacity-60" />
                     <p className="text-xs text-muted-foreground">Loading preview…</p>
