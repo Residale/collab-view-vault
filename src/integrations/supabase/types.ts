@@ -135,6 +135,36 @@ export type Database = {
         }
         Relationships: []
       }
+      public_links: {
+        Row: {
+          allow_download: boolean
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          file_id: string
+          id: string
+          token: string
+        }
+        Insert: {
+          allow_download?: boolean
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          file_id: string
+          id?: string
+          token: string
+        }
+        Update: {
+          allow_download?: boolean
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          file_id?: string
+          id?: string
+          token?: string
+        }
+        Relationships: []
+      }
       saved_searches: {
         Row: {
           created_at: string
