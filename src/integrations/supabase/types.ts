@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      comments: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          file_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          file_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          file_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      file_tags: {
+        Row: {
+          created_at: string
+          file_id: string
+          tag_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_id: string
+          tag_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_id?: string
+          tag_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       files: {
         Row: {
           content_text: string | null
@@ -240,6 +288,30 @@ export type Database = {
           shared_with?: string
           target_id?: string
           target_type?: Database["public"]["Enums"]["share_target"]
+        }
+        Relationships: []
+      }
+      tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
         }
         Relationships: []
       }
