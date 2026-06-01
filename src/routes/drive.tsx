@@ -662,6 +662,7 @@ type FolderActions = {
   onRename: (f: FolderRow) => void;
   onMove: (f: FolderRow) => void;
   onDelete: (f: FolderRow) => void;
+  onColor: (f: FolderRow, color: string | null) => void;
 };
 type FileActions = {
   onShare: (f: FileRow) => void;
@@ -674,13 +675,57 @@ type FileActions = {
 };
 
 function FolderContextMenu({ folder, actions, children }: { folder: FolderRow; actions: FolderActions; children: React.ReactNode }) {
+  const current = folder.color ?? null;
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
+      <ContextMenuContent className="w-52">
         <ContextMenuItem onSelect={() => actions.onShare(folder)}><Share2 className="size-3.5 mr-2" /> Share</ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.onRename(folder)}><Pencil className="size-3.5 mr-2" /> Rename</ContextMenuItem>
         <ContextMenuItem onSelect={() => actions.onMove(folder)}><Move className="size-3.5 mr-2" /> Move…</ContextMenuItem>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger><Palette className="size-3.5 mr-2" /> Color</ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-56 p-2">
+            <div className="grid grid-cols-7 gap-1.5">
+              {FOLDER_PALETTE.map((c) => {
+                const active = (current ?? DEFAULT_FOLDER_COLOR).toLowerCase() === c.value.toLowerCase();
+                return (
+                  <button
+                    key={c.value}
+                    title={c.name}
+                    onClick={() => actions.onColor(folder, c.value)}
+                    className={cn(
+                      "size-6 rounded-full grid place-items-center ring-1 ring-black/10 hover:scale-110 transition-transform",
+                      active && "ring-2 ring-foreground/70",
+                    )}
+                    style={{ backgroundColor: c.value }}
+                  >
+                    {active && <Check className="size-3 text-white drop-shadow" />}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer flex-1">
+                <input
+                  type="color"
+                  value={current ?? DEFAULT_FOLDER_COLOR}
+                  onChange={(e) => actions.onColor(folder, e.target.value)}
+                  className="size-6 rounded cursor-pointer border-0 bg-transparent p-0"
+                />
+                Custom…
+              </label>
+              {current && (
+                <button
+                  onClick={() => actions.onColor(folder, null)}
+                  className="text-[11px] px-2 py-1 rounded-md hover:bg-surface-2 text-muted-foreground"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => actions.onDelete(folder)} className="text-destructive focus:text-destructive">
           <Trash2 className="size-3.5 mr-2" /> Delete
