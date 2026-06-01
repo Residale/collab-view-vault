@@ -374,11 +374,21 @@ function DrivePage() {
   };
 
 
+  const onColorFolder = async (f: FolderRow, color: string | null) => {
+    try {
+      await setFolderColor(f.id, color);
+      invalidate();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
   const folderActions = {
     onShare: (f: FolderRow) => setShareTarget({ type: "folder", id: f.id, name: f.name, ownerId: f.owner_id }),
     onRename: (f: FolderRow) => setRenameTarget({ kind: "folder", id: f.id, name: f.name }),
     onMove: (f: FolderRow) => setMoveTarget({ kind: "folder", id: f.id, name: f.name, currentParent: f.parent_id }),
     onDelete: onDeleteFolder,
+    onColor: onColorFolder,
   };
   const fileActions = {
     onShare: (f: FileRow) => setShareTarget({ type: "file", id: f.id, name: f.name, ownerId: f.owner_id }),
