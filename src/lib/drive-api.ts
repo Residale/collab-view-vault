@@ -9,7 +9,7 @@ export type FolderRow = {
   name: string;
   created_at: string;
   updated_at: string;
-  deleted_at: string | null;
+  deleted_at?: string | null;
 };
 
 export type FileRow = {
@@ -23,8 +23,9 @@ export type FileRow = {
   starred: boolean;
   created_at: string;
   updated_at: string;
-  deleted_at: string | null;
+  deleted_at?: string | null;
 };
+
 
 
 export type Section = "my" | "shared-with-me" | "shared-by-me" | "recent" | "starred" | "trash";
