@@ -435,6 +435,87 @@ function DrivePage() {
     onStar,
   };
 
+  // -------- Drag & drop: move items into a folder --------
+  const buildDragPayload = (kind: "file" | "folder", id: string): DragPayload => {
+    if (kind === "file") {
+      const ids = selectedIds.has(id) ? Array.from(selectedIds) : [id];
+      return { files: ids, folders: Array.from(selectedFolderIds) };
+    }
+    const ids = selectedFolderIds.has(id) ? Array.from(selectedFolderIds) : [id];
+    return { files: Array.from(selectedIds), folders: ids };
+  };
+
+  const dropIntoFolder = async (targetFolderId: string | null, payload: DragPayload) => {
+    const fileIds = payload.files;
+    const folderIds = payload.folders.filter((id) => id !== targetFolderId);
+    if (!fileIds.length && !folderIds.length) return;
+    const total = fileIds.length + folderIds.length;
+    const tid = toast.loading(`Moving ${total} item${total > 1 ? "s" : ""}…`);
+    try {
+      await Promise.all([
+        ...fileIds.map((id) => moveFile(id, targetFolderId)),
+        ...folderIds.map((id) => moveFolder(id, targetFolderId)),
+      ]);
+      clearSelection();
+      invalidate();
+      toast.success(`Moved ${total} item${total > 1 ? "s" : ""}`, { id: tid });
+    } catch (e: any) {
+      toast.error(e.message ?? "Move failed", { id: tid });
+    }
+  };
+
+  // -------- Bottom selection bar actions --------
+  const selectionStarAll = async () => {
+    const files = activeFiles.filter((f) => selectedIds.has(f.id));
+    for (const f of files) await onStar(f);
+  };
+  const selectionDownloadAll = async () => {
+    const files = activeFiles.filter((f) => selectedIds.has(f.id));
+    for (const f of files) await onDownload(f);
+  };
+  const selectionShareSingle = () => {
+    if (selectedIds.size === 1 && selectedFolderIds.size === 0) {
+      const f = activeFiles.find((x) => selectedIds.has(x.id));
+      if (f) fileActions.onShare(f);
+    } else if (selectedFolderIds.size === 1 && selectedIds.size === 0) {
+      const f = activeFolders.find((x) => selectedFolderIds.has(x.id));
+      if (f) folderActions.onShare(f);
+    }
+  };
+  const selectionMoveAll = () => {
+    // For multi-move we reuse the MoveDialog by setting one target — keeps UX simple.
+    if (selectedIds.size === 1 && selectedFolderIds.size === 0) {
+      const f = activeFiles.find((x) => selectedIds.has(x.id));
+      if (f) fileActions.onMove(f);
+      return;
+    }
+    if (selectedFolderIds.size === 1 && selectedIds.size === 0) {
+      const f = activeFolders.find((x) => selectedFolderIds.has(x.id));
+      if (f) folderActions.onMove(f);
+      return;
+    }
+    toast.info("Drag & drop the selection into a folder to move multiple items.");
+  };
+  const selectionDeleteAll = async () => {
+    const fileTargets = activeFiles.filter((f) => selectedIds.has(f.id));
+    const folderTargets = activeFolders.filter((f) => selectedFolderIds.has(f.id));
+    const total = fileTargets.length + folderTargets.length;
+    if (!total) return;
+    const tid = toast.loading(`Moving ${total} to Trash…`);
+    try {
+      await Promise.all([
+        ...fileTargets.map((f) => trashFile(f.id)),
+        ...folderTargets.map((f) => trashFolder(f.id)),
+      ]);
+      clearSelection();
+      invalidate();
+      toast.success(`${total} item${total > 1 ? "s" : ""} moved to Trash`, { id: tid });
+    } catch (e: any) {
+      toast.error(e.message, { id: tid });
+    }
+  };
+
+
   if (loading || !user) {
     return <div className="min-h-screen grid place-items-center text-muted-foreground text-sm">Loading…</div>;
   }
