@@ -730,6 +730,7 @@ function DrivePage() {
               search={search}
               selectedIds={selectedIds}
               selectedFolderIds={selectedFolderIds}
+              previewFileId={previewFile?.id ?? null}
               onFileClick={handleFileClick}
               onFileOpen={(f) => setQuickLook(f)}
               onBackgroundClick={clearSelection}
