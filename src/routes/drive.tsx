@@ -80,14 +80,13 @@ function DrivePage() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["drive"] });
 
-  if (loading || !user) {
-    return <div className="min-h-screen grid place-items-center text-muted-foreground text-sm">Loading…</div>;
-  }
+
 
   const handleUpload = async (files: FileList | File[] | null) => {
-    if (!files) return;
+    if (!files || !user) return;
     const arr = Array.from(files);
     if (!arr.length) return;
+
     const currentFolder = path[path.length - 1];
     const id = toast.loading(`Uploading ${arr.length} file${arr.length > 1 ? "s" : ""}…`);
     let done = 0;
@@ -196,7 +195,12 @@ function DrivePage() {
     onStar,
   };
 
+  if (loading || !user) {
+    return <div className="min-h-screen grid place-items-center text-muted-foreground text-sm">Loading…</div>;
+  }
+
   return (
+
     <div
       className="flex h-screen bg-background text-foreground font-sans selection:bg-muted relative"
       onDragEnter={onDragEnter}
