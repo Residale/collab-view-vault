@@ -32,6 +32,9 @@ import { CommandPalette } from "@/components/drive/CommandPalette";
 import { CheatsheetDialog } from "@/components/drive/CheatsheetDialog";
 import { SearchBar, type SearchFilters } from "@/components/drive/SearchBar";
 import { SearchResults } from "@/components/drive/SearchResults";
+import { SelectionBar } from "@/components/drive/SelectionBar";
+import { SelectionCheckbox } from "@/components/drive/SelectionCheckbox";
+import { setDragPayload, getDragPayload, isDriveDrag, isExternalFileDrag, type DragPayload } from "@/components/drive/dnd";
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
   ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent,
