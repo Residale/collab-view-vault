@@ -387,11 +387,19 @@ export type FileKind =
   | "image" | "video" | "audio" | "pdf"
   | "spreadsheet" | "presentation" | "doc" | "code"
   | "archive" | "design" | "font" | "ebook"
-  | "executable" | "data" | "other";
+  | "executable" | "data" | "link" | "other";
 
 export function fileKind(mime: string | null, name: string): FileKind {
   const m = (mime ?? "").toLowerCase();
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
+
+  // Google Workspace + other external link shortcuts.
+  if (m === "application/vnd.google-apps.spreadsheet") return "spreadsheet";
+  if (m === "application/vnd.google-apps.document")    return "doc";
+  if (m === "application/vnd.google-apps.presentation") return "presentation";
+  if (m === "application/vnd.google-apps.form")        return "doc";
+  if (m === "application/vnd.google-apps.drive-sdk" || m === "application/x-url" ||
+      m === "application/vnd.figma.link" || m === "application/vnd.notion.link") return "link";
 
   if (m.startsWith("image/") || ["png","jpg","jpeg","gif","webp","svg","bmp","tiff","heic","heif","avif","ico"].includes(ext)) return "image";
   if (m.startsWith("video/") || ["mp4","mov","avi","mkv","webm","m4v","wmv","flv","mpeg","mpg","3gp"].includes(ext)) return "video";
