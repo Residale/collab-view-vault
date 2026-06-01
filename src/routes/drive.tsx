@@ -833,6 +833,7 @@ function DrivePage() {
       <QuickLook
         file={quickLook}
         siblings={activeFiles}
+        searchQuery={activeQuery || undefined}
         onNavigate={(f) => setQuickLook(f)}
         onClose={() => setQuickLook(null)}
         onDownload={onDownload}
