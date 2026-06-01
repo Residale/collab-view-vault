@@ -1,11 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ChevronRight, Columns3, Folder, FolderPlus, Grid3x3, List as ListIcon,
   LogOut, Search, Share2, Star, Upload, Clock, Inbox, Send,
-  Download, Pencil, Trash2, Move, Link2, Sun, Moon,
+  Download, Pencil, Trash2, Move, Link2, Sun, Moon, Eye,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -17,9 +17,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { FileIcon } from "@/components/drive/FileIcon";
 import { Thumbnail } from "@/components/drive/Thumbnail";
-import { PreviewPane } from "@/components/drive/PreviewPane";
+import { QuickLook } from "@/components/drive/QuickLook";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
 import { RenameDialog } from "@/components/drive/RenameDialog";
