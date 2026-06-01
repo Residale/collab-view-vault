@@ -124,9 +124,38 @@ function sanitizeStorageName(name: string) {
   return cleaned.replace(/^_+|_+$/g, "") || "file";
 }
 
+/**
+ * Find a non-clashing name in the given folder by appending " (n)" before
+ * the extension. Mirrors the rename behaviour of macOS Finder / Windows.
+ */
+export async function uniqueNameInFolder(
+  ownerId: string,
+  folderId: string | null,
+  desiredName: string,
+  kind: "file" | "folder",
+): Promise<string> {
+  const table = kind === "file" ? "files" : "folders";
+  const column = kind === "file" ? "folder_id" : "parent_id";
+  let q = supabase.from(table).select("name").eq("owner_id", ownerId).is("deleted_at", null);
+  q = folderId === null ? q.is(column, null) : q.eq(column, folderId);
+  const { data, error } = await q;
+  if (error) throw error;
+  const taken = new Set((data ?? []).map((r: { name: string }) => r.name.toLowerCase()));
+  if (!taken.has(desiredName.toLowerCase())) return desiredName;
+  const dot = desiredName.lastIndexOf(".");
+  const base = dot > 0 ? desiredName.slice(0, dot) : desiredName;
+  const ext = dot > 0 ? desiredName.slice(dot) : "";
+  for (let i = 1; i < 1000; i++) {
+    const candidate = `${base} (${i})${ext}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+  return `${base} (${Date.now()})${ext}`;
+}
+
 export async function uploadFile(userId: string, folderId: string | null, file: File) {
   const fileId = crypto.randomUUID();
-  const path = `${userId}/${fileId}-${sanitizeStorageName(file.name)}`;
+  const finalName = await uniqueNameInFolder(userId, folderId, file.name, "file");
+  const path = `${userId}/${fileId}-${sanitizeStorageName(finalName)}`;
   const { error: upErr } = await supabase.storage.from("drive").upload(path, file, {
     cacheControl: "3600", upsert: false, contentType: file.type || undefined,
   });
@@ -135,7 +164,7 @@ export async function uploadFile(userId: string, folderId: string | null, file: 
     id: fileId,
     owner_id: userId,
     folder_id: folderId,
-    name: file.name,
+    name: finalName,
     storage_path: path,
     mime_type: file.type || null,
     size: file.size,
@@ -146,8 +175,19 @@ export async function uploadFile(userId: string, folderId: string | null, file: 
   return data as FileRow;
 }
 
-export async function getSignedUrl(path: string, expires = 3600) {
-  return getDriveSignedUrl({ data: { path, expires } });
+export type ImageTransform = {
+  width: number;
+  height: number;
+  resize?: "cover" | "contain" | "fill";
+  quality?: number;
+};
+
+export async function getSignedUrl(
+  path: string,
+  expires = 3600,
+  transform?: ImageTransform,
+) {
+  return getDriveSignedUrl({ data: { path, expires, transform } });
 }
 
 // Soft-delete: mark deleted_at. Storage object kept until permanent purge.
