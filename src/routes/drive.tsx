@@ -329,11 +329,25 @@ function DrivePage() {
         e.preventDefault(); setQuickLook(selectedFile); return;
       }
       // Enter = open / download
-      if (e.key === "Enter" && selectedFile) { e.preventDefault(); onDownload(selectedFile); }
+      if (e.key === "Enter" && selectedFile) { e.preventDefault(); onDownload(selectedFile); return; }
+      // Single-key shortcuts (no modifier)
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "?" || (e.shiftKey && e.key === "/")) { e.preventDefault(); setCheatsheetOpen(true); return; }
+      if (e.key === "/") { e.preventDefault(); setPaletteOpen(true); return; }
+      if (e.key.toLowerCase() === "n" && section === "my") { e.preventDefault(); setFolderDialog(true); return; }
+      if (e.key.toLowerCase() === "u" && section === "my") { e.preventDefault(); fileInputRef.current?.click(); return; }
+      if (e.key.toLowerCase() === "r" && selectedFile) {
+        e.preventDefault();
+        setRenameTarget({ kind: "file", id: selectedFile.id, name: selectedFile.name });
+        return;
+      }
+      if (e.key.toLowerCase() === "s" && selectedFile) {
+        e.preventDefault(); onToggleStar(selectedFile); return;
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedFile, selectedIds, quickLook, activeFiles]);
+  }, [selectedFile, selectedIds, quickLook, activeFiles, section]);
 
   // Drag & drop
   const onDragEnter = (e: React.DragEvent) => {
