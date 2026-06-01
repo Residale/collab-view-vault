@@ -244,6 +244,10 @@ function DrivePage() {
 
 
   const onDownload = async (f: FileRow) => {
+    if (isExternalLink(f)) {
+      window.open(externalUrl(f), "_blank", "noopener,noreferrer");
+      return;
+    }
     try {
       const url = await getSignedUrl(f.storage_path);
       window.open(url, "_blank");
@@ -251,6 +255,11 @@ function DrivePage() {
   };
 
   const onCopyLink = async (f: FileRow) => {
+    if (isExternalLink(f)) {
+      try { await navigator.clipboard.writeText(externalUrl(f)); toast.success("URL copied"); }
+      catch (e: any) { toast.error(e.message); }
+      return;
+    }
     try {
       const url = await getSignedUrl(f.storage_path, 60 * 60 * 24 * 7); // 7 days
       await navigator.clipboard.writeText(url);
