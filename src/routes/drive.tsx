@@ -150,14 +150,22 @@ function DrivePage() {
     });
   };
 
-  // Lasso selection bridge — child views dispatch a window event to avoid prop drilling.
+  // Lasso selection bridge — child views dispatch window events to avoid prop drilling.
   useEffect(() => {
-    const onSet = (e: Event) => {
+    const onSetFiles = (e: Event) => {
       const detail = (e as CustomEvent).detail as { ids: string[] };
       setSelectedIds(new Set(detail.ids));
     };
-    window.addEventListener("drive-lasso-set", onSet);
-    return () => window.removeEventListener("drive-lasso-set", onSet);
+    const onSetFolders = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { ids: string[] };
+      setSelectedFolderIds(new Set(detail.ids));
+    };
+    window.addEventListener("drive-lasso-set", onSetFiles);
+    window.addEventListener("drive-lasso-set-folders", onSetFolders);
+    return () => {
+      window.removeEventListener("drive-lasso-set", onSetFiles);
+      window.removeEventListener("drive-lasso-set-folders", onSetFolders);
+    };
   }, []);
 
   // Reset state when switching section
