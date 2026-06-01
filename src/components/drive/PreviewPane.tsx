@@ -3,6 +3,7 @@ import { fileKind, getSignedUrl, type FileRow, formatBytes } from "@/lib/drive-a
 import { Button } from "@/components/ui/button";
 import { Download, Share2, Star, Trash2 } from "lucide-react";
 import { FileIcon } from "./FileIcon";
+import { SheetPreview } from "./SheetPreview";
 
 export function PreviewPane({
   file,
@@ -15,13 +16,30 @@ export function PreviewPane({
   onDownload: (f: FileRow) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [textContent, setTextContent] = useState<string | null>(null);
+
   useEffect(() => {
     setUrl(null);
+    setTextContent(null);
     if (!file) return;
     let cancelled = false;
     getSignedUrl(file.storage_path).then((u) => { if (!cancelled) setUrl(u); }).catch(() => {});
     return () => { cancelled = true; };
   }, [file?.id]);
+
+  const kind = file ? fileKind(file.mime_type, file.name) : "other";
+  const isText = file && (kind === "doc" || kind === "code") &&
+    /\.(txt|md|json|csv|tsv|log|js|ts|tsx|jsx|py|html|css|go|rs|xml|yml|yaml)$/i.test(file.name);
+
+  useEffect(() => {
+    if (!url || !isText) return;
+    let cancelled = false;
+    fetch(url)
+      .then((r) => r.text())
+      .then((t) => { if (!cancelled) setTextContent(t.slice(0, 200_000)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [url, isText]);
 
   if (!file) {
     return (
@@ -34,29 +52,34 @@ export function PreviewPane({
     );
   }
 
-  const k = fileKind(file.mime_type, file.name);
+  const isSheet = kind === "spreadsheet" || /\.(xlsx|xls|csv|tsv|ods)$/i.test(file.name);
 
   return (
     <div className="flex-1 bg-surface-2 overflow-y-auto thin-scroll">
-      <div className="p-8 max-w-2xl mx-auto">
-        {/* Visual preview */}
+      <div className="p-8 max-w-3xl mx-auto">
         <div className="w-full aspect-[4/5] bg-surface rounded-xl ring-1 ring-hairline grid place-items-center mb-8 overflow-hidden shadow-pane">
-          {url && k === "image" && <img src={url} alt={file.name} className="size-full object-contain" />}
-          {url && k === "video" && <video src={url} controls className="size-full" />}
-          {url && k === "audio" && (
+          {url && kind === "image" && <img src={url} alt={file.name} className="size-full object-contain" />}
+          {url && kind === "video" && <video src={url} controls className="size-full" />}
+          {url && kind === "audio" && (
             <div className="p-8 w-full">
               <FileIcon name={file.name} mime={file.mime_type} className="size-16 mx-auto mb-4" />
               <audio src={url} controls className="w-full" />
             </div>
           )}
-          {url && k === "pdf" && <iframe src={url} title={file.name} className="size-full" />}
-          {url && (k === "doc" || k === "spreadsheet") && (
+          {url && kind === "pdf" && <iframe src={url} title={file.name} className="size-full" />}
+          {url && isSheet && <SheetPreview url={url} />}
+          {url && isText && textContent !== null && (
+            <pre className="size-full overflow-auto thin-scroll p-4 text-xs font-mono text-left whitespace-pre-wrap">
+              {textContent}
+            </pre>
+          )}
+          {url && kind === "doc" && !isText && (
             <iframe
               src={`https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`}
               title={file.name} className="size-full"
             />
           )}
-          {(!url || ["other", "code", "archive"].includes(k)) && (
+          {(!url || ["other", "archive"].includes(kind)) && (
             <div className="text-center">
               <FileIcon name={file.name} mime={file.mime_type} className="size-16 mx-auto mb-3" />
               <p className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground">No inline preview</p>
