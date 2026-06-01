@@ -76,6 +76,15 @@ export function SearchBar({
     return () => clearTimeout(t);
   }, [q]);
 
+  // Auto-clear active search results when the input is emptied — no Enter needed.
+  const lastSubmittedRef = useRef<string>("");
+  useEffect(() => {
+    if (q.trim() === "" && lastSubmittedRef.current !== "") {
+      lastSubmittedRef.current = "";
+      onActiveQueryChange("", filters);
+    }
+  }, [q, filters, onActiveQueryChange]);
+
   // Keyboard: ⌘K / Ctrl+K to focus
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
