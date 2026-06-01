@@ -7,6 +7,7 @@ export type FolderRow = {
   owner_id: string;
   parent_id: string | null;
   name: string;
+  color?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
