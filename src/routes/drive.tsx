@@ -1018,11 +1018,12 @@ function Column(props: {
                     )}
                     title={f.name}
                   >
-                    <Thumbnail
-                      file={f}
-                      className="size-7 rounded ring-1 ring-hairline shrink-0 bg-surface-2"
-                      iconClassName="size-3.5"
+                    <FileIcon
+                      name={f.name}
+                      mime={f.mime_type}
+                      className="size-7 rounded-md"
                     />
+
                     <div className="min-w-0 flex-1">
                       <div className="text-[13px] font-medium truncate leading-tight">{f.name}</div>
                       <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
