@@ -1451,13 +1451,6 @@ function Column(props: SharedViewProps & {
                       <div className="text-[13px] font-medium truncate leading-tight">{f.name}</div>
                       <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
-                      className="size-6 grid place-items-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-surface-2"
-                      title="Quick Look (Space)"
-                    >
-                      <Eye className="size-3" />
-                    </button>
                   </div>
                 </FileContextMenu>
               );
