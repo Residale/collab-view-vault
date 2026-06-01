@@ -451,13 +451,17 @@ function DrivePage() {
         </nav>
 
 
-        <div className="mt-auto p-4 space-y-3">
+        <div className="mt-auto p-4 space-y-2">
           <Button className="w-full" onClick={() => fileInputRef.current?.click()}>
             <Upload /> Upload files
+          </Button>
+          <Button variant="outline" className="w-full" onClick={() => folderInputRef.current?.click()} disabled={section !== "my"}>
+            <Upload /> Upload folder
           </Button>
           <Button variant="outline" className="w-full" onClick={() => setFolderDialog(true)} disabled={section !== "my"}>
             <FolderPlus /> New folder
           </Button>
+
           <button
             onClick={() => signOut()}
             className="w-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-2 px-2 py-1"
