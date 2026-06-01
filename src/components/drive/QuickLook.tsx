@@ -31,20 +31,23 @@ export function QuickLook({
   const [zoom, setZoom] = useState(1);
   const imgWrapRef = useRef<HTMLDivElement | null>(null);
 
+  const external = !!file && isExternalLink(file);
+  const linkUrl = external && file ? externalUrl(file) : null;
+
   useEffect(() => {
     setUrl(null);
     setTextContent(null);
     setZoom(1);
-    if (!file) return;
+    if (!file || external) return;
     let cancelled = false;
     getSignedUrl(file.storage_path).then((u) => { if (!cancelled) setUrl(u); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [file?.id]);
+  }, [file?.id, external]);
 
   const kind = file ? fileKind(file.mime_type, file.name) : "other";
-  const isText = !!file && (kind === "doc" || kind === "code") &&
+  const isText = !!file && !external && (kind === "doc" || kind === "code") &&
     /\.(txt|md|json|csv|tsv|log|js|ts|tsx|jsx|py|html|css|go|rs|xml|yml|yaml)$/i.test(file.name);
-  const isSheet = !!file && (kind === "spreadsheet" || /\.(xlsx|xls|csv|tsv|ods)$/i.test(file.name));
+  const isSheet = !!file && !external && (kind === "spreadsheet" || /\.(xlsx|xls|csv|tsv|ods)$/i.test(file.name));
 
   useEffect(() => {
     if (!url || !isText) return;
