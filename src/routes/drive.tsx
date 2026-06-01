@@ -1759,6 +1759,10 @@ function FlatView(props: SharedViewProps & {
                         onToggleSelected={() => onToggleFolderSelected(f.id)}
                         buildDragPayload={buildDragPayload}
                         onDropIntoFolder={onDropIntoFolder}
+                        registerRef={(el) => {
+                          if (el) itemRefs.current.set(f.id, { el, kind: "folder" });
+                          else itemRefs.current.delete(f.id);
+                        }}
                       />
                     </FolderContextMenu>
                   );
@@ -1776,7 +1780,7 @@ function FlatView(props: SharedViewProps & {
                     <FileContextMenu key={f.id} file={f} actions={fileActions}>
                       <div
                         data-drive-item="file"
-                        ref={(el) => { if (el) itemRefs.current.set(f.id, el); else itemRefs.current.delete(f.id); }}
+                        ref={(el) => { if (el) itemRefs.current.set(f.id, { el, kind: "file" }); else itemRefs.current.delete(f.id); }}
                         draggable
                         onDragStart={(e) => setDragPayload(e, buildDragPayload("file", f.id))}
                         onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
@@ -1788,20 +1792,19 @@ function FlatView(props: SharedViewProps & {
                       >
                         <div className="aspect-square w-full bg-surface-2 relative overflow-hidden">
                           <Thumbnail file={f} className="size-full" iconClassName="size-10 opacity-70" />
-                          <FileTypeBadge
-                            name={f.name}
-                            mime={f.mime_type}
-                            className="absolute bottom-2 left-2 size-7 rounded-md shadow-md ring-2 ring-background"
-                            iconClassName="size-4"
-                          />
                           <div className="absolute top-2 right-2">
                             <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
                           </div>
                         </div>
 
-                        <div className="p-2.5 border-t border-hairline bg-surface">
-                          <div className="text-sm font-medium truncate">{f.name}</div>
-                          <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
+                        <div className="p-2.5 border-t border-hairline bg-surface flex items-center gap-2">
+                          <div className="text-sm font-medium truncate flex-1 min-w-0">{f.name}</div>
+                          <FileTypeBadge
+                            name={f.name}
+                            mime={f.mime_type}
+                            className="size-5 rounded shrink-0"
+                            iconClassName="size-3"
+                          />
                         </div>
                       </div>
                     </FileContextMenu>
