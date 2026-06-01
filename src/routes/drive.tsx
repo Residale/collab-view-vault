@@ -1043,7 +1043,7 @@ function Column(props: {
                   )}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Folder className="size-4 text-muted-foreground shrink-0" />
+                    <FolderIcon color={f.color} className="size-5" />
                     <span className="truncate font-medium">{f.name}</span>
                   </div>
                   <ChevronRight className="size-3.5 text-muted-foreground/60 shrink-0" />
@@ -1201,7 +1201,7 @@ function FlatView(props: {
                 className="w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm hover:bg-surface-2/60 group"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Folder className="size-4 text-muted-foreground" />
+                  <FolderIcon color={f.color} className="size-5" />
                   <span className="truncate font-medium">{f.name}</span>
                 </div>
                 <span className="text-muted-foreground">—</span>
@@ -1257,7 +1257,7 @@ function FlatView(props: {
                       onClick={() => onOpenFolder(f)}
                       className="h-12 rounded-lg ring-1 ring-hairline bg-surface hover:bg-surface-2 transition-colors px-3 flex items-center gap-3 text-left"
                     >
-                      <Folder className="size-4 text-muted-foreground shrink-0" />
+                      <FolderIcon color={f.color} className="size-6" />
                       <span className="text-sm font-medium truncate">{f.name}</span>
                     </button>
                   </FolderContextMenu>
@@ -1408,7 +1408,7 @@ function TrashView({ userId, invalidate }: { userId: string; invalidate: () => v
           {folders.map((f) => (
             <div key={f.id} className="grid grid-cols-[1fr_120px_160px_120px] gap-4 px-6 h-12 items-center text-sm hover:bg-surface-2/40">
               <div className="flex items-center gap-3 min-w-0">
-                <Folder className="size-4 text-muted-foreground" />
+                <FolderIcon color={f.color} className="size-5" />
                 <span className="truncate font-medium">{f.name}</span>
               </div>
               <span className="text-muted-foreground">—</span>
