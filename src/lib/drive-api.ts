@@ -201,6 +201,11 @@ export async function renameFolder(id: string, name: string) {
   if (error) throw error;
 }
 
+export async function setFolderColor(id: string, color: string | null) {
+  const { error } = await supabase.from("folders").update({ color }).eq("id", id);
+  if (error) throw error;
+}
+
 export async function moveFile(id: string, folderId: string | null) {
   const { error } = await supabase.from("files").update({ folder_id: folderId }).eq("id", id);
   if (error) throw error;
