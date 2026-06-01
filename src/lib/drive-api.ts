@@ -271,17 +271,30 @@ export async function removeShare(id: string) {
   if (error) throw error;
 }
 
-export function fileKind(mime: string | null, name: string): "image" | "video" | "pdf" | "audio" | "spreadsheet" | "doc" | "code" | "archive" | "other" {
-  const m = mime ?? "";
+export type FileKind =
+  | "image" | "video" | "audio" | "pdf"
+  | "spreadsheet" | "presentation" | "doc" | "code"
+  | "archive" | "design" | "font" | "ebook"
+  | "executable" | "data" | "other";
+
+export function fileKind(mime: string | null, name: string): FileKind {
+  const m = (mime ?? "").toLowerCase();
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  if (m.startsWith("image/")) return "image";
-  if (m.startsWith("video/")) return "video";
-  if (m.startsWith("audio/")) return "audio";
+
+  if (m.startsWith("image/") || ["png","jpg","jpeg","gif","webp","svg","bmp","tiff","heic","heif","avif","ico"].includes(ext)) return "image";
+  if (m.startsWith("video/") || ["mp4","mov","avi","mkv","webm","m4v","wmv","flv","mpeg","mpg","3gp"].includes(ext)) return "video";
+  if (m.startsWith("audio/") || ["mp3","wav","flac","aac","ogg","m4a","wma","opus","aiff","alac"].includes(ext)) return "audio";
   if (m === "application/pdf" || ext === "pdf") return "pdf";
-  if (["xls", "xlsx", "csv", "numbers"].includes(ext)) return "spreadsheet";
-  if (["doc", "docx", "pages", "rtf", "txt", "md"].includes(ext)) return "doc";
-  if (["js", "ts", "tsx", "jsx", "json", "py", "html", "css", "go", "rs"].includes(ext)) return "code";
-  if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return "archive";
+  if (["xls","xlsx","xlsm","csv","tsv","ods","numbers"].includes(ext)) return "spreadsheet";
+  if (["ppt","pptx","pptm","odp","key"].includes(ext)) return "presentation";
+  if (["doc","docx","odt","pages","rtf","txt","md","markdown","tex"].includes(ext)) return "doc";
+  if (["js","mjs","cjs","ts","tsx","jsx","json","yaml","yml","xml","html","htm","css","scss","sass","less","py","rb","go","rs","java","kt","swift","c","cc","cpp","h","hpp","cs","php","sh","bash","zsh","sql","toml","ini","env","vue","svelte"].includes(ext)) return "code";
+  if (["zip","rar","7z","tar","gz","bz2","xz","tgz","tbz","zst","iso","dmg"].includes(ext)) return "archive";
+  if (["psd","ai","xd","fig","sketch","afdesign","afphoto","indd","eps"].includes(ext)) return "design";
+  if (["ttf","otf","woff","woff2","eot"].includes(ext)) return "font";
+  if (["epub","mobi","azw","azw3","fb2","djvu"].includes(ext)) return "ebook";
+  if (["exe","msi","apk","app","deb","rpm","bin","dll"].includes(ext)) return "executable";
+  if (["db","sqlite","sqlite3","parquet","arrow","ndjson","jsonl"].includes(ext)) return "data";
   return "other";
 }
 
