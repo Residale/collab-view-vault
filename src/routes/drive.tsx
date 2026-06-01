@@ -673,6 +673,7 @@ function DrivePage() {
           { id: "recent", label: "Go to Recent", icon: <Clock className="size-4" />, onSelect: () => setSection("recent") },
           { id: "starred", label: "Go to Starred", icon: <Star className="size-4" />, onSelect: () => setSection("starred") },
           { id: "theme", label: dark ? "Switch to light mode" : "Switch to dark mode", icon: dark ? <Sun className="size-4" /> : <Moon className="size-4" />, onSelect: () => setDark((v) => !v), keywords: "theme dark light" },
+          { id: "help", label: "Keyboard shortcuts", icon: <Search className="size-4" />, onSelect: () => setCheatsheetOpen(true), keywords: "help shortcuts cheatsheet" },
         ]}
       />
 
