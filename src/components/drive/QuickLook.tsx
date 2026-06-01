@@ -64,14 +64,19 @@ export function QuickLook({
   }, [file?.id, siblings]);
 
   useEffect(() => {
-    if (!file || !onNavigate) return;
+    if (!file) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "ArrowLeft" && prev) { e.preventDefault(); onNavigate!(prev); }
-      else if (e.key === "ArrowRight" && next) { e.preventDefault(); onNavigate!(next); }
+      if (onNavigate && e.key === "ArrowLeft" && prev) { e.preventDefault(); onNavigate(prev); return; }
+      if (onNavigate && e.key === "ArrowRight" && next) { e.preventDefault(); onNavigate(next); return; }
+      if (kind === "image") {
+        if (e.key === "+" || e.key === "=") { e.preventDefault(); setZoom((z) => Math.min(8, z * 1.25)); }
+        else if (e.key === "-" || e.key === "_") { e.preventDefault(); setZoom((z) => Math.max(0.25, z * 0.8)); }
+        else if (e.key === "0") { e.preventDefault(); setZoom(1); }
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [file?.id, prev, next, onNavigate]);
+  }, [file?.id, prev, next, onNavigate, kind]);
 
 
   const isImage = kind === "image";
