@@ -402,13 +402,38 @@ function DrivePage() {
     if (dragCounter.current <= 0) { dragCounter.current = 0; setDragOver(false); }
   };
   const onDragOver = (e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+    if (e.dataTransfer.types.includes("Files") || e.dataTransfer.types.includes("text/uri-list")) e.preventDefault();
   };
+
+  // Create a shortcut file from a URL (e.g. Google Sheets / Docs / Slides).
+  const handleAddLink = async (rawUrl: string, displayName?: string) => {
+    if (!user) return;
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return;
+    if (!detectExternalLink(trimmed)) { toast.error("Not a valid URL"); return; }
+    if (section !== "my") { toast.error("Switch to My Drive to add a link"); return; }
+    try {
+      const folderId = path[path.length - 1];
+      await createExternalLink(user.id, folderId, trimmed, displayName);
+      toast.success("Link added");
+      invalidate();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
   const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current = 0;
     setDragOver(false);
     if (section !== "my") { toast.error("Switch to My Drive to upload"); return; }
+
+    // URL drop (Google Sheets / Docs / any web link).
+    const uriList = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
+    const looksLikeUrl = uriList && /^https?:\/\//i.test(uriList.trim().split(/\s+/)[0] ?? "");
+    if (looksLikeUrl && (!e.dataTransfer.files || e.dataTransfer.files.length === 0)) {
+      const url = uriList.trim().split(/\s+/)[0];
+      await handleAddLink(url);
+      return;
+    }
 
     // Prefer DataTransferItemList to preserve folder structure.
     const items = e.dataTransfer.items;
