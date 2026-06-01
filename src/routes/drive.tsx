@@ -83,9 +83,10 @@ function DrivePage() {
 
 
   const handleUpload = async (files: FileList | File[] | null) => {
-    if (!files) return;
+    if (!files || !user) return;
     const arr = Array.from(files);
     if (!arr.length) return;
+
     const currentFolder = path[path.length - 1];
     const id = toast.loading(`Uploading ${arr.length} file${arr.length > 1 ? "s" : ""}…`);
     let done = 0;
