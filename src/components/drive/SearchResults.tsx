@@ -1,12 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { searchDrive } from "@/lib/drive-search.functions";
 import type { SearchFilters } from "./SearchBar";
 import { FileIcon } from "./FileIcon";
 import { Thumbnail } from "./Thumbnail";
-import { Star, X } from "lucide-react";
+import { Star, X, Bookmark } from "lucide-react";
 import { FolderIcon } from "@/components/drive/FolderIcon";
 import { formatBytes, type FileRow, type FolderRow } from "@/lib/drive-api";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { createSavedSearch } from "@/lib/saved-searches";
+import { supabase } from "@/integrations/supabase/client";
 
 function rangeToISO(r: SearchFilters["modifiedRange"]) {
   if (r === "any") return undefined;
