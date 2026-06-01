@@ -190,8 +190,6 @@ export type Database = {
         Args: { _folder: string; _user: string }
         Returns: boolean
       }
-      show_limit: { Args: never; Returns: number }
-      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       share_permission: "view" | "edit"
