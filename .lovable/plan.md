@@ -31,6 +31,8 @@ Objectif : un drive **rapide, intuitif, logique**, au niveau de Google Drive / D
 ### Zone centrale
 - 3 modes de vue : **Grille (cards avec preview)**, **Liste (densité confort/compacte)**, **Colonnes (Finder-style)**.
 - Toggle persisté par dossier.
+- **IMPORTANT — Mode Colonnes** : dans chaque colonne, fichiers et dossiers doivent s'afficher **en liste verticale compacte** (une ligne = icône + nom + chevron pour les dossiers), **jamais en cards carrées**. C'est le pattern Finder macOS : navigation rapide en cascade horizontale, chaque colonne = une liste fine. Largeur de colonne resizable + persistée. Preview du fichier sélectionné dans la dernière colonne à droite.
+
 
 ### Panneau droit (preview)
 - N'apparaît **que sur clic simple** d'un fichier (déjà OK).
@@ -141,7 +143,53 @@ Légende : **[Déjà fait]** · **[À faire]** · **[Discutable]**
 - [À faire] **Dark mode** complet (vérifier cohérence).
 - [À faire] **Préférences utilisateur** persistées (vue par défaut, tri, densité).
 
+### M. Vues & navigation (ajouts)
+- [À faire] **Mode Colonnes type Finder** : listes fines en cascade horizontale (cf. section 1), navigation au clavier ←/→/↑/↓, scroll horizontal auto vers la dernière colonne ouverte.
+- [À faire] **Vue Liste** avec colonnes triables et redimensionnables (Nom, Taille, Modifié, Type, Propriétaire, Tags), choix des colonnes affichées.
+- [À faire] **Vue Galerie** plein écran pour dossiers d'images/vidéos (grille dense sans nom).
+- [À faire] **Mini-map / aperçu de l'arborescence** dans la sidebar (expand inline des dossiers).
+- [À faire] **Split view** : ouvrir deux dossiers côte à côte pour drag & drop facile.
+- [À faire] **Densité réglable** (confort / compact / ultra-compact) sur Liste et Colonnes.
+- [À faire] **Sticky headers** dans la vue Liste pendant le scroll.
+
+### N. Sélection & interactions avancées
+- [À faire] **Lasso de sélection** au clic-glisser sur fond vide (Grille + Liste).
+- [À faire] **Shift-clic** = range, **Cmd/Ctrl-clic** = toggle, **Cmd+A** = tout sélectionner.
+- [À faire] **Barre d'actions batch flottante** en bas quand sélection multiple (compte + Déplacer / Télécharger / Supprimer / Partager / Tag).
+- [À faire] **Hover preview rapide** (tooltip avec thumbnail agrandi après 500ms).
+- [À faire] **Sélection persistante** au scroll et au changement de tri.
+
+### O. Performance & robustesse
+- [À faire] **Virtualisation** (`@tanstack/react-virtual`) sur Grille/Liste pour gérer 10k+ items sans lag.
+- [À faire] **Lazy-load des thumbnails** (IntersectionObserver).
+- [À faire] **Cache client** (TanStack Query) avec invalidation fine après upload/move/delete.
+- [À faire] **Optimistic updates** sur rename / move / star / delete.
+- [À faire] **Reprise d'upload** après coupure réseau (TUS protocol ou chunks).
+- [À faire] **Offline mode** lecture (Service Worker + IndexedDB cache des derniers fichiers consultés).
+
+### P. Onboarding & aide
+- [À faire] **Tour guidé** au premier login (3-4 étapes).
+- [À faire] **Cheatsheet raccourcis** (`?`) en modal.
+- [À faire] **Tooltips contextuels** sur actions peu évidentes.
+- [À faire] **Empty states actionnables** (CTA "Uploader votre premier fichier").
+
+### Q. Métadonnées & propriétés
+- [À faire] **Panneau Propriétés** détaillé (taille exacte, dimensions, durée, EXIF photo, codec vidéo, pages PDF, créé/modifié par, chemin complet).
+- [À faire] **Description / notes** libres par fichier ou dossier.
+- [À faire] **Date custom** (date d'événement vs date d'upload pour photos).
+
+### R. Notifications & temps réel
+- [À faire] **Realtime** (Supabase channels) : voir en live les uploads/modifs d'autres users dans un dossier partagé.
+- [À faire] **Indicateurs de présence** (qui regarde ce dossier maintenant).
+- [À faire] **Centre de notifications** in-app (cloche header).
+
+### S. Corbeille & récupération
+- [À faire] **Corbeille avec filtres** (par date de suppression, par auteur).
+- [À faire] **Restauration en masse** avec rétablissement du chemin d'origine.
+- [À faire] **Compteur de jours restants** avant purge auto.
+
 ---
+
 
 ## 3. Détails techniques (section dev)
 
