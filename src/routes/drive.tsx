@@ -1513,41 +1513,40 @@ function FlatView(props: SharedViewProps & {
           <div className="grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-9 items-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground sticky top-0 bg-background z-10 border-b border-hairline">
             <span>Name</span><span>Size</span><span>Modified</span><span></span>
           </div>
-          {folders.map((f) => (
-            <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
-              <button
-                data-drive-item="folder"
-                onDoubleClick={() => onOpenFolder(f)}
-                onClick={() => onOpenFolder(f)}
-                className="w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm hover:bg-surface-2/60 group"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <FolderIcon color={f.color} className="size-5" />
-                  <span className="truncate font-medium">{f.name}</span>
-                </div>
-                <span className="text-muted-foreground">—</span>
-                <span className="text-muted-foreground">{new Date(f.updated_at).toLocaleDateString()}</span>
-                <span className="opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); folderActions.onShare(f); }}>
-                  <Share2 className="size-3.5 text-muted-foreground hover:text-foreground" />
-                </span>
-              </button>
-            </FolderContextMenu>
-          ))}
+          {folders.map((f) => {
+            const isSel = selectedFolderIds.has(f.id);
+            return (
+              <FolderContextMenu key={f.id} folder={f} actions={folderActions}>
+                <FlatFolderRow
+                  folder={f}
+                  isSelected={isSel}
+                  onOpen={() => onOpenFolder(f)}
+                  onToggleSelected={() => onToggleFolderSelected(f.id)}
+                  onShare={() => folderActions.onShare(f)}
+                  buildDragPayload={buildDragPayload}
+                  onDropIntoFolder={onDropIntoFolder}
+                />
+              </FolderContextMenu>
+            );
+          })}
           {files.map((f) => {
             const isSelected = selectedIds.has(f.id);
             return (
               <FileContextMenu key={f.id} file={f} actions={fileActions}>
-                <button
+                <div
                   data-drive-item="file"
                   ref={(el) => { if (el) itemRefs.current.set(f.id, el); else itemRefs.current.delete(f.id); }}
+                  draggable
+                  onDragStart={(e) => setDragPayload(e, buildDragPayload("file", f.id))}
                   onClick={(e) => { e.stopPropagation(); onFileClick(f, e); }}
                   onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                   className={cn(
-                    "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm",
+                    "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm cursor-default group",
                     isSelected ? "bg-primary/10 ring-1 ring-primary/40" : "hover:bg-surface-2/60",
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
+                    <SelectionCheckbox checked={isSelected} onToggle={() => onToggleFileSelected(f.id)} />
                     <div className="relative size-9 rounded-md overflow-hidden ring-1 ring-hairline bg-surface-2 shrink-0">
                       <Thumbnail file={f} className="size-full" iconClassName="size-4 opacity-70" />
                       <FileTypeBadge
@@ -1562,7 +1561,7 @@ function FlatView(props: SharedViewProps & {
                   <span className="text-muted-foreground">{formatBytes(f.size)}</span>
                   <span className="text-muted-foreground">{new Date(f.updated_at).toLocaleDateString()}</span>
                   <span></span>
-                </button>
+                </div>
               </FileContextMenu>
             );
           })}
