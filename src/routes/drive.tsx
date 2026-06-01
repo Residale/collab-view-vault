@@ -1471,6 +1471,10 @@ function Column(props: SharedViewProps & {
                 folderActions={folderActions}
                 buildDragPayload={buildDragPayload}
                 onDropIntoFolder={onDropIntoFolder}
+                registerRef={(el) => {
+                  if (el) itemRefs.current.set(f.id, { el, kind: "folder" });
+                  else itemRefs.current.delete(f.id);
+                }}
               />
             ))}
           </div>
