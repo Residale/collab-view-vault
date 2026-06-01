@@ -1486,6 +1486,7 @@ function Column(props: SharedViewProps & {
           <div className="space-y-0.5">
             {files.map((f) => {
               const isSelected = selectedIds.has(f.id);
+              const isPreview = previewFileId === f.id;
               return (
                 <FileContextMenu key={f.id} file={f} actions={fileActions}>
                   <div
@@ -1502,7 +1503,9 @@ function Column(props: SharedViewProps & {
                       "w-full px-2 py-1.5 rounded-md flex items-center gap-2.5 text-left transition-colors group cursor-default",
                       isSelected
                         ? "bg-primary/15 ring-1 ring-primary/40"
-                        : "hover:bg-surface-2/60",
+                        : isPreview
+                          ? "ring-2 ring-primary/70 bg-primary/5"
+                          : "hover:bg-surface-2/60",
                     )}
                     title={f.name}
                   >
