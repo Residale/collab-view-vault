@@ -1214,10 +1214,14 @@ function Column(props: SharedViewProps & {
   const folders = (data?.folders ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
   const files = (data?.files ?? []).filter(f => !search || f.name.toLowerCase().includes(search.toLowerCase()));
 
-  // Publish active files only from the last (deepest) column.
+  // Publish active files and folders only from the last (deepest) column.
   useEffect(() => {
-    if (isLast) onActiveFiles(files);
+    if (isLast) { onActiveFiles(files); onActiveFolders(folders); }
   }, [isLast, data]);
+
+  // Track drop hover state for this column (root drop = upload into this parent).
+  const [columnDropOver, setColumnDropOver] = useState(false);
+  const dropCounter = useRef(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<string, HTMLElement>>(new Map());
