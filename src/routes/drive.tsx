@@ -613,7 +613,7 @@ function Column(props: {
                 selectedFile?.id === f.id ? "bg-primary text-primary-foreground" : "hover:bg-surface-2/60",
               )}
             >
-              <Thumbnail file={f} className="size-9 rounded-md ring-1 ring-hairline shrink-0" iconClassName="size-5" />
+              <Thumbnail file={f} className="size-12 rounded-md ring-1 ring-hairline shrink-0" iconClassName="size-6" />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{f.name}</div>
                 <div className={cn("text-[10px]", selectedFile?.id === f.id ? "text-primary-foreground/70" : "text-muted-foreground")}>
@@ -704,7 +704,7 @@ function FlatView(props: {
                 )}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Thumbnail file={f} className="size-7 rounded ring-1 ring-hairline shrink-0" iconClassName="size-4" />
+                  <Thumbnail file={f} className="size-10 rounded ring-1 ring-hairline shrink-0" iconClassName="size-5" />
                   <span className="truncate font-medium">{f.name}</span>
                 </div>
                 <span className="text-muted-foreground">{formatBytes(f.size)}</span>

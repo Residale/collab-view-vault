@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fileKind, getSignedUrl, type FileRow } from "@/lib/drive-api";
 import { FileIcon } from "./FileIcon";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,10 @@ export function Thumbnail({
 }) {
   const kind = fileKind(file.mime_type, file.name);
   const wantsPreview = kind === "image" || kind === "video" || kind === "pdf";
+  const pdfPreviewUrl = useMemo(() => {
+    if (!url || kind !== "pdf") return null;
+    return `${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH&page=1`;
+  }, [kind, url]);
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -64,17 +68,14 @@ export function Thumbnail({
             className="size-full object-cover"
           />
         )}
-        {kind === "pdf" && url && (
-          <object
-            data={`${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-            type="application/pdf"
-            className="size-full pointer-events-none"
-            aria-label={file.name}
-          >
-            <div className="size-full grid place-items-center">
-              <FileIcon name={file.name} mime={file.mime_type} className={iconClassName} />
-            </div>
-          </object>
+        {kind === "pdf" && pdfPreviewUrl && (
+          <iframe
+            src={pdfPreviewUrl}
+            title={file.name}
+            loading="lazy"
+            className="size-full pointer-events-none border-0 bg-surface"
+            onError={() => setFailed(true)}
+          />
         )}
         {!url && (
           <div className="size-full grid place-items-center">
