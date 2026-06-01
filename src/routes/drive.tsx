@@ -1117,7 +1117,8 @@ function Column(props: {
                       <FileTypeBadge
                         name={f.name}
                         mime={f.mime_type}
-                        className="absolute -bottom-0.5 -right-0.5 size-3.5 rounded ring-1 ring-background"
+                        className="absolute -bottom-0.5 -right-0.5 size-4 rounded ring-1 ring-background"
+                        iconClassName="size-2.5"
                       />
                     </div>
 
@@ -1271,7 +1272,8 @@ function FlatView(props: {
                       <FileTypeBadge
                         name={f.name}
                         mime={f.mime_type}
-                        className="absolute -bottom-0.5 -right-0.5 size-3.5 rounded ring-1 ring-background"
+                        className="absolute -bottom-0.5 -right-0.5 size-4 rounded ring-1 ring-background"
+                        iconClassName="size-2.5"
                       />
                     </div>
                     <span className="truncate font-medium">{f.name}</span>
