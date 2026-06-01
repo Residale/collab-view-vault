@@ -28,6 +28,7 @@ import { QuickLook } from "@/components/drive/QuickLook";
 import { PreviewPane } from "@/components/drive/PreviewPane";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
+import { AddLinkDialog } from "@/components/drive/AddLinkDialog";
 import { RenameDialog } from "@/components/drive/RenameDialog";
 import { MoveDialog } from "@/components/drive/MoveDialog";
 import { CommandPalette } from "@/components/drive/CommandPalette";
