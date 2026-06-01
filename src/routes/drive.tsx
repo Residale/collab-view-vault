@@ -1225,6 +1225,11 @@ function FlatView(props: {
                       >
                         <div className="aspect-square w-full bg-surface-2 relative overflow-hidden">
                           <Thumbnail file={f} className="size-full" iconClassName="size-10 opacity-70" />
+                          <FileTypeBadge
+                            name={f.name}
+                            mime={f.mime_type}
+                            className="absolute top-2 left-2"
+                          />
                           <button
                             onClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                             className="absolute top-2 right-2 size-7 grid place-items-center rounded-md bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 ring-1 ring-hairline hover:bg-background"
@@ -1233,6 +1238,7 @@ function FlatView(props: {
                             <Eye className="size-3.5" />
                           </button>
                         </div>
+
                         <div className="p-2.5 border-t border-hairline bg-surface">
                           <div className="text-sm font-medium truncate">{f.name}</div>
                           <div className="text-[10px] text-muted-foreground">{formatBytes(f.size)}</div>
