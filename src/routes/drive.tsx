@@ -83,6 +83,7 @@ function DrivePage() {
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
 
   const selectedFile = useMemo(
@@ -139,24 +140,77 @@ function DrivePage() {
 
 
 
+  // Upload a flat list of files (no folder structure).
   const handleUpload = async (files: FileList | File[] | null) => {
     if (!files || !user) return;
-    const arr = Array.from(files);
+    const arr = Array.from(files).filter((f) => f.size > 0 || f.type !== "");
     if (!arr.length) return;
+    await handleUploadEntries(arr.map((f) => ({ file: f, relPath: [] })));
+  };
 
+  // Upload files preserving folder structure. relPath = directory segments
+  // relative to the current folder (excluding the filename).
+  const handleUploadEntries = async (
+    entries: { file: File; relPath: string[] }[],
+  ) => {
+    if (!user || !entries.length) return;
     const currentFolder = path[path.length - 1];
-    const id = toast.loading(`Uploading ${arr.length} file${arr.length > 1 ? "s" : ""}…`);
-    let done = 0;
-    for (const f of arr) {
+    const id = toast.loading(`Uploading ${entries.length} item${entries.length > 1 ? "s" : ""}…`);
+
+    // Create folders on-demand, caching path → folderId.
+    const folderCache = new Map<string, string | null>();
+    folderCache.set("", currentFolder);
+    const ensureFolder = async (segments: string[]): Promise<string | null> => {
+      const key = segments.join("/");
+      if (folderCache.has(key)) return folderCache.get(key)!;
+      const parent = await ensureFolder(segments.slice(0, -1));
       try {
-        await uploadFile(user.id, currentFolder, f);
+        const created = await createFolder(user.id, parent, segments[segments.length - 1]);
+        folderCache.set(key, created.id);
+        return created.id;
+      } catch (e: any) {
+        toast.error(`Folder ${segments.join("/")}: ${e.message}`);
+        folderCache.set(key, parent);
+        return parent;
+      }
+    };
+
+    let done = 0;
+    for (const { file, relPath } of entries) {
+      try {
+        const folderId = await ensureFolder(relPath);
+        await uploadFile(user.id, folderId, file);
         done++;
-        toast.loading(`Uploading… ${done}/${arr.length}`, { id });
-      } catch (e: any) { toast.error(`${f.name}: ${e.message}`); }
+        toast.loading(`Uploading… ${done}/${entries.length}`, { id });
+      } catch (e: any) {
+        toast.error(`${file.name}: ${e?.message ?? "Failed to upload"}`);
+      }
     }
-    toast.success(`Uploaded ${done}/${arr.length}`, { id });
+    toast.success(`Uploaded ${done}/${entries.length}`, { id });
     invalidate();
   };
+
+  // Walk a FileSystemEntry tree (from drag-and-drop) into a flat list.
+  const readEntries = async (entry: any, prefix: string[] = []): Promise<{ file: File; relPath: string[] }[]> => {
+    if (entry.isFile) {
+      const file: File = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      return [{ file, relPath: prefix }];
+    }
+    if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const all: any[] = [];
+      // readEntries returns max 100 at a time; loop until empty.
+      while (true) {
+        const batch: any[] = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+        if (!batch.length) break;
+        all.push(...batch);
+      }
+      const nested = await Promise.all(all.map((e) => readEntries(e, [...prefix, entry.name])));
+      return nested.flat();
+    }
+    return [];
+  };
+
 
   const onDownload = async (f: FileRow) => {
     try {
@@ -292,13 +346,29 @@ function DrivePage() {
   const onDragOver = (e: React.DragEvent) => {
     if (e.dataTransfer.types.includes("Files")) e.preventDefault();
   };
-  const onDrop = (e: React.DragEvent) => {
+  const onDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current = 0;
     setDragOver(false);
     if (section !== "my") { toast.error("Switch to My Drive to upload"); return; }
+
+    // Prefer DataTransferItemList to preserve folder structure.
+    const items = e.dataTransfer.items;
+    if (items && items.length && typeof (items[0] as any).webkitGetAsEntry === "function") {
+      const entries: any[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const entry = (items[i] as any).webkitGetAsEntry?.();
+        if (entry) entries.push(entry);
+      }
+      if (entries.length) {
+        const collected = (await Promise.all(entries.map((en) => readEntries(en)))).flat();
+        if (collected.length) { await handleUploadEntries(collected); return; }
+      }
+    }
+    // Fallback: flat file list.
     handleUpload(e.dataTransfer.files);
   };
+
 
   const folderActions = {
     onShare: (f: FolderRow) => setShareTarget({ type: "folder", id: f.id, name: f.name, ownerId: f.owner_id }),
@@ -333,6 +403,23 @@ function DrivePage() {
         ref={fileInputRef} type="file" multiple className="hidden"
         onChange={(e) => { handleUpload(e.target.files); e.target.value = ""; }}
       />
+      <input
+        ref={folderInputRef} type="file" className="hidden"
+        // @ts-expect-error non-standard but widely supported
+        webkitdirectory="" directory=""
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          const entries = files.map((f) => {
+            const rel = (f as any).webkitRelativePath as string | undefined;
+            const segs = rel ? rel.split("/") : [f.name];
+            const relPath = segs.slice(0, -1);
+            return { file: f, relPath };
+          });
+          handleUploadEntries(entries);
+          e.target.value = "";
+        }}
+      />
+
 
       {/* Drag overlay */}
       {dragOver && (
@@ -364,13 +451,17 @@ function DrivePage() {
         </nav>
 
 
-        <div className="mt-auto p-4 space-y-3">
+        <div className="mt-auto p-4 space-y-2">
           <Button className="w-full" onClick={() => fileInputRef.current?.click()}>
             <Upload /> Upload files
+          </Button>
+          <Button variant="outline" className="w-full" onClick={() => folderInputRef.current?.click()} disabled={section !== "my"}>
+            <Upload /> Upload folder
           </Button>
           <Button variant="outline" className="w-full" onClick={() => setFolderDialog(true)} disabled={section !== "my"}>
             <FolderPlus /> New folder
           </Button>
+
           <button
             onClick={() => signOut()}
             className="w-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-2 px-2 py-1"
@@ -538,6 +629,7 @@ function DrivePage() {
         onOpenFolder={(f) => { setSection("my"); setPath([null, f.id]); }}
         actions={[
           { id: "upload", label: "Upload files", icon: <Upload className="size-4" />, onSelect: () => fileInputRef.current?.click() },
+          { id: "upload-folder", label: "Upload folder", icon: <Upload className="size-4" />, onSelect: () => folderInputRef.current?.click() },
           { id: "new-folder", label: "New folder", icon: <FolderPlus className="size-4" />, onSelect: () => setFolderDialog(true) },
           { id: "my", label: "Go to My Drive", icon: <Folder className="size-4" />, onSelect: () => setSection("my") },
           { id: "shared-with-me", label: "Go to Shared with me", icon: <Inbox className="size-4" />, onSelect: () => setSection("shared-with-me") },
