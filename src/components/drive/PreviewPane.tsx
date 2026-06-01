@@ -72,11 +72,17 @@ export function PreviewPane({
         {/* Compact preview thumbnail (click to open fullscreen) */}
         <button
           type="button"
-          onClick={() => onOpenFullscreen?.(file)}
+          onClick={() => external && linkUrl ? window.open(linkUrl, "_blank", "noopener,noreferrer") : onOpenFullscreen?.(file)}
           className="group w-full aspect-[4/3] bg-surface rounded-xl ring-1 ring-hairline grid place-items-center overflow-hidden relative cursor-zoom-in"
-          title="Open fullscreen"
+          title={external ? "Open in new tab" : "Open fullscreen"}
         >
-          {url && kind === "image" && <img src={url} alt={file.name} className="size-full object-contain" />}
+          {external && (
+            <div className="text-center p-6">
+              <FileIcon name={file.name} mime={file.mime_type} className="size-16 mx-auto mb-3" />
+              <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">External link</div>
+            </div>
+          )}
+          {!external && url && kind === "image" && <img src={url} alt={file.name} className="size-full object-contain" />}
           {url && kind === "video" && <video src={url} className="size-full object-contain" muted />}
           {url && kind === "audio" && (
             <div className="p-6 w-full text-center">
