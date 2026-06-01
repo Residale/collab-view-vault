@@ -1169,7 +1169,7 @@ function FlatView(props: {
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <Thumbnail file={f} className="size-8 rounded ring-1 ring-hairline shrink-0" iconClassName="size-4" />
+                    <FileIcon name={f.name} mime={f.mime_type} className="size-8 rounded-md" />
                     <span className="truncate font-medium">{f.name}</span>
                   </div>
                   <span className="text-muted-foreground">{formatBytes(f.size)}</span>
