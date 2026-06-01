@@ -469,7 +469,7 @@ function DrivePage() {
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         userId={user.id}
-        onOpenFile={(f) => { setSection("my"); setSelectedFile(f); }}
+        onOpenFile={(f) => { setSection("my"); setQuickLook(f); }}
         onOpenFolder={(f) => { setSection("my"); setPath([null, f.id]); }}
         actions={[
           { id: "upload", label: "Upload files", icon: <Upload className="size-4" />, onSelect: () => fileInputRef.current?.click() },
