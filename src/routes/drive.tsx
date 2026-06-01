@@ -10,10 +10,11 @@ import {
 import { useAuth } from "@/lib/auth";
 import {
   createFolder, deleteFile, deleteFolder, getSignedUrl, listFiles, listFolders, listRecent,
-  listSharedByMe, listSharedWithMe, listStarred, moveFile, moveFolder, renameFile, renameFolder,
-  toggleStar, uploadFile,
+  listSharedByMe, listSharedWithMe, listStarred, listTrash, moveFile, moveFolder, renameFile, renameFolder,
+  restoreFile, restoreFolder, toggleStar, trashFile, trashFolder, uploadFile,
   type FileRow, type FolderRow, type Section, formatBytes,
 } from "@/lib/drive-api";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
