@@ -16,36 +16,42 @@ export type Database = {
     Tables: {
       files: {
         Row: {
+          content_text: string | null
           created_at: string
           folder_id: string | null
           id: string
           mime_type: string | null
           name: string
           owner_id: string
+          search_tsv: unknown
           size: number
           starred: boolean
           storage_path: string
           updated_at: string
         }
         Insert: {
+          content_text?: string | null
           created_at?: string
           folder_id?: string | null
           id?: string
           mime_type?: string | null
           name: string
           owner_id: string
+          search_tsv?: unknown
           size?: number
           starred?: boolean
           storage_path: string
           updated_at?: string
         }
         Update: {
+          content_text?: string | null
           created_at?: string
           folder_id?: string | null
           id?: string
           mime_type?: string | null
           name?: string
           owner_id?: string
+          search_tsv?: unknown
           size?: number
           starred?: boolean
           storage_path?: string
@@ -120,6 +126,27 @@ export type Database = {
         }
         Relationships: []
       }
+      search_history: {
+        Row: {
+          created_at: string
+          id: string
+          query: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          query: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          query?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       shares: {
         Row: {
           created_at: string
@@ -163,6 +190,8 @@ export type Database = {
         Args: { _folder: string; _user: string }
         Returns: boolean
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       share_permission: "view" | "edit"
