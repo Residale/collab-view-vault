@@ -68,6 +68,11 @@ function DrivePage() {
   const [moveTarget, setMoveTarget] = useState<{ kind: "file" | "folder"; id: string; name: string; currentParent: string | null } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // Full-text search (header search bar) — when active, replaces main content with results.
+  const [activeQuery, setActiveQuery] = useState<string>("");
+  const [activeFilters, setActiveFilters] = useState<SearchFilters>({
+    types: [], modifiedRange: "any", sizeRange: "any", starred: false,
+  });
   const [dragOver, setDragOver] = useState(false);
   const [dark, setDark] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
