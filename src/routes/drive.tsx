@@ -1370,7 +1370,7 @@ function TrashView({ userId, invalidate }: { userId: string; invalidate: () => v
           {files.map((f) => (
             <div key={f.id} className="grid grid-cols-[1fr_120px_160px_120px] gap-4 px-6 h-12 items-center text-sm hover:bg-surface-2/40">
               <div className="flex items-center gap-3 min-w-0">
-                <Thumbnail file={f} className="size-8 rounded ring-1 ring-hairline shrink-0" iconClassName="size-4" />
+                <FileIcon name={f.name} mime={f.mime_type} className="size-8 rounded-md" />
                 <span className="truncate font-medium">{f.name}</span>
               </div>
               <span className="text-muted-foreground">{formatBytes(f.size)}</span>
