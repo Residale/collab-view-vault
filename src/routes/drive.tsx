@@ -1353,18 +1353,19 @@ function Column(props: SharedViewProps & {
 
 /* ---------------- List / Grid view ---------------- */
 
-function FlatView(props: {
-  userId: string; section: Section; path: (string | null)[]; search: string;
+function FlatView(props: SharedViewProps & {
   mode: "list" | "grid";
-  selectedIds: Set<string>;
-  onFileClick: (f: FileRow, e: React.MouseEvent) => void;
-  onFileOpen: (f: FileRow) => void;
   onOpenFolder: (f: FolderRow) => void;
-  onBackgroundClick: () => void;
-  onActiveFiles: (files: FileRow[]) => void;
-  folderActions: FolderActions;
-  fileActions: FileActions;
 }) {
+  const {
+    userId, section, path, search, mode,
+    selectedIds, selectedFolderIds,
+    onFileClick, onFileOpen, onOpenFolder, onBackgroundClick,
+    onActiveFiles, onActiveFolders,
+    folderActions, fileActions,
+    onToggleFolderSelected, onToggleFileSelected,
+    buildDragPayload, onDropIntoFolder,
+  } = props;
   const {
     userId, section, path, search, mode, selectedIds,
     onFileClick, onFileOpen, onOpenFolder, onBackgroundClick, onActiveFiles,
