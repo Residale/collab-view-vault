@@ -1548,7 +1548,7 @@ function Column(props: SharedViewProps & {
 
 function FolderRow({
   folder, isActive, isSelected, onOpen, onToggleSelected,
-  folderActions, buildDragPayload, onDropIntoFolder,
+  folderActions, buildDragPayload, onDropIntoFolder, registerRef,
 }: {
   folder: FolderRow;
   isActive: boolean;
@@ -1558,12 +1558,14 @@ function FolderRow({
   folderActions: FolderActions;
   buildDragPayload: (kind: "file" | "folder", id: string) => DragPayload;
   onDropIntoFolder: (targetFolderId: string | null, payload: DragPayload) => void | Promise<void>;
+  registerRef?: (el: HTMLElement | null) => void;
 }) {
   const [over, setOver] = useState(false);
   return (
     <FolderContextMenu folder={folder} actions={folderActions}>
       <div
         data-drive-item="folder"
+        ref={registerRef}
         draggable
         onDragStart={(e) => setDragPayload(e, buildDragPayload("folder", folder.id))}
         onDragEnter={(e) => { if (isDriveDrag(e) || isExternalFileDrag(e)) { e.preventDefault(); e.stopPropagation(); setOver(true); } }}
