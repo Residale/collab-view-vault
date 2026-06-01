@@ -26,14 +26,17 @@ export function PreviewPane({
   const [url, setUrl] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
 
+  const external = !!file && isExternalLink(file);
+  const linkUrl = external && file ? externalUrl(file) : null;
+
   useEffect(() => {
     setUrl(null);
     setTextContent(null);
-    if (!file) return;
+    if (!file || external) return;
     let cancelled = false;
     getSignedUrl(file.storage_path).then((u) => { if (!cancelled) setUrl(u); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [file?.id]);
+  }, [file?.id, external]);
 
   const kind = file ? fileKind(file.mime_type, file.name) : "other";
   const isText = file && (kind === "doc" || kind === "code") &&
