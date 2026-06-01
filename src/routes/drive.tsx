@@ -1084,23 +1084,32 @@ function useLasso(
   onBackgroundClick?: () => void,
 ) {
   const [rect, setRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  // Keep callbacks in refs so the effect can stay stable across renders —
+  // otherwise listeners get re-bound mid-drag and the drag state resets,
+  // which is what makes the lasso draw "a tiny line and stop".
+  const getItemsRef = useRef(getItems);
+  const onSelectRef = useRef(onSelect);
+  const onBgRef = useRef(onBackgroundClick);
+  useEffect(() => { getItemsRef.current = getItems; });
+  useEffect(() => { onSelectRef.current = onSelect; });
+  useEffect(() => { onBgRef.current = onBackgroundClick; });
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    let startX = 0, startY = 0, additive = false, active = false, moved = false;
-    let baseScrollTop = 0;
+    let startX = 0, startY = 0, startClientX = 0, startClientY = 0;
+    let additive = false, active = false, moved = false;
 
     const onDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
-      // Don't start lasso if user pressed on an interactive item.
       const target = e.target as HTMLElement;
       if (target.closest("[data-drive-item], button, a, input, [role='menuitem']")) return;
       const cRect = el.getBoundingClientRect();
       startX = e.clientX - cRect.left + el.scrollLeft;
       startY = e.clientY - cRect.top + el.scrollTop;
-      baseScrollTop = el.scrollTop;
+      startClientX = e.clientX;
+      startClientY = e.clientY;
       additive = e.metaKey || e.ctrlKey || e.shiftKey;
       active = true;
       moved = false;
@@ -1116,36 +1125,27 @@ function useLasso(
       const dy = Math.abs(curY - startY);
       if (!moved && dx < 4 && dy < 4) return;
       moved = true;
-      const x = Math.min(startX, curX);
-      const y = Math.min(startY, curY);
-      const w = Math.abs(curX - startX);
-      const h = Math.abs(curY - startY);
-      setRect({ x, y, w, h });
-
-      // Compute selection
-      const items = getItems();
+      setRect({
+        x: Math.min(startX, curX),
+        y: Math.min(startY, curY),
+        w: Math.abs(curX - startX),
+        h: Math.abs(curY - startY),
+      });
+      const vx1 = Math.min(e.clientX, startClientX);
+      const vy1 = Math.min(e.clientY, startClientY);
+      const vx2 = Math.max(e.clientX, startClientX);
+      const vy2 = Math.max(e.clientY, startClientY);
       const hit = new Set<string>();
-      const cTop = cRect.top;
-      const cLeft = cRect.left;
-      const lassoLeft = x + cLeft - el.scrollLeft;
-      const lassoTop = y + cTop - el.scrollTop + (el.scrollTop - baseScrollTop);
-      // Simpler: use bounding rects in viewport coords directly
-      const vx1 = Math.min(e.clientX, cLeft + startX - el.scrollLeft);
-      const vy1 = Math.min(e.clientY, cTop + startY - el.scrollTop);
-      const vx2 = Math.max(e.clientX, cLeft + startX - el.scrollLeft);
-      const vy2 = Math.max(e.clientY, cTop + startY - el.scrollTop);
-      void lassoLeft; void lassoTop;
-      for (const it of items) {
+      for (const it of getItemsRef.current()) {
         const r = it.el.getBoundingClientRect();
-        const intersects = r.right >= vx1 && r.left <= vx2 && r.bottom >= vy1 && r.top <= vy2;
-        if (intersects) hit.add(it.id);
+        if (r.right >= vx1 && r.left <= vx2 && r.bottom >= vy1 && r.top <= vy2) hit.add(it.id);
       }
-      onSelect(hit, additive);
+      onSelectRef.current(hit, additive);
     };
 
     const onUp = () => {
       if (!active) return;
-      if (!moved && onBackgroundClick) onBackgroundClick();
+      if (!moved) onBgRef.current?.();
       active = false;
       setRect(null);
     };
@@ -1158,7 +1158,7 @@ function useLasso(
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [containerRef, getItems, onSelect, onBackgroundClick]);
+  }, [containerRef]);
 
   return rect;
 }
