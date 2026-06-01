@@ -24,6 +24,7 @@ import { Thumbnail } from "@/components/drive/Thumbnail";
 import { FileTypeBadge, FileIcon } from "@/components/drive/FileIcon";
 import { FolderIcon, FOLDER_PALETTE, DEFAULT_FOLDER_COLOR } from "@/components/drive/FolderIcon";
 import { QuickLook } from "@/components/drive/QuickLook";
+import { PreviewPane } from "@/components/drive/PreviewPane";
 import { ShareDialog, type ShareTargetInput } from "@/components/drive/ShareDialog";
 import { NewFolderDialog } from "@/components/drive/NewFolderDialog";
 import { RenameDialog } from "@/components/drive/RenameDialog";
@@ -73,8 +74,11 @@ function DrivePage() {
   // Files visible in the active container, used for shift-range and lasso.
   const [activeFiles, setActiveFiles] = useState<FileRow[]>([]);
   const [activeFolders, setActiveFolders] = useState<FolderRow[]>([]);
-  // Quick Look modal (Space / double-click)
+  // Quick Look modal (Space / double-click / "Open" button)
   const [quickLook, setQuickLook] = useState<FileRow | null>(null);
+  // Right-side preview pane — set by a single click on a file.
+  // Independent from `selectedIds` (selection is only via the checkbox icon).
+  const [previewFile, setPreviewFile] = useState<FileRow | null>(null);
 
   const [shareTarget, setShareTarget] = useState<ShareTargetInput | null>(null);
   const [folderDialog, setFolderDialog] = useState(false);
@@ -124,9 +128,11 @@ function DrivePage() {
     setSelectedIds(new Set(ids.slice(from, to + 1)));
   };
   const handleFileClick = (file: FileRow, e: React.MouseEvent) => {
+    // Plain click → just preview. NEVER mutate selection on plain click —
+    // selection is opt-in via the checkbox icon on each row/tile.
     if (e.metaKey || e.ctrlKey) toggleInSelection(file.id);
     else if (e.shiftKey) selectRange(file.id);
-    else selectOnly(file.id);
+    else setPreviewFile(file);
   };
   const clearSelection = () => {
     setSelectedIds(new Set());
@@ -152,7 +158,7 @@ function DrivePage() {
   }, []);
 
   // Reset state when switching section
-  useEffect(() => { setPath([null]); clearSelection(); setQuickLook(null); }, [section]);
+  useEffect(() => { setPath([null]); clearSelection(); setQuickLook(null); setPreviewFile(null); }, [section]);
 
   // Theme
   useEffect(() => {
@@ -321,6 +327,7 @@ function DrivePage() {
 
   // Keyboard shortcuts
   useEffect(() => {
+    const focusFile = previewFile ?? selectedFile;
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       const inField = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
@@ -338,17 +345,18 @@ function DrivePage() {
       if (inField) return;
       if (e.key === "Escape") {
         if (quickLook) { setQuickLook(null); return; }
+        if (previewFile) { setPreviewFile(null); return; }
         if (selectedIds.size) { clearSelection(); return; }
       }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.size) {
         e.preventDefault(); onDeleteSelection(); return;
       }
       // Space = Quick Look (Mac Finder style)
-      if (e.key === " " && selectedFile && !quickLook) {
-        e.preventDefault(); setQuickLook(selectedFile); return;
+      if (e.key === " " && focusFile && !quickLook) {
+        e.preventDefault(); setQuickLook(focusFile); return;
       }
       // Enter = open / download
-      if (e.key === "Enter" && selectedFile) { e.preventDefault(); onDownload(selectedFile); return; }
+      if (e.key === "Enter" && focusFile) { e.preventDefault(); onDownload(focusFile); return; }
       // Single-key shortcuts (no modifier). Skip if user is selecting text,
       // so we never hijack standard copy/paste/selection flows.
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -357,18 +365,18 @@ function DrivePage() {
       if (e.key === "/") { e.preventDefault(); setPaletteOpen(true); return; }
       if (e.key.toLowerCase() === "n" && section === "my") { e.preventDefault(); setFolderDialog(true); return; }
       if (e.key.toLowerCase() === "u" && section === "my") { e.preventDefault(); fileInputRef.current?.click(); return; }
-      if (e.key.toLowerCase() === "r" && selectedFile) {
+      if (e.key.toLowerCase() === "r" && focusFile) {
         e.preventDefault();
-        setRenameTarget({ kind: "file", id: selectedFile.id, name: selectedFile.name });
+        setRenameTarget({ kind: "file", id: focusFile.id, name: focusFile.name });
         return;
       }
-      if (e.key.toLowerCase() === "s" && selectedFile) {
-        e.preventDefault(); onStar(selectedFile); return;
+      if (e.key.toLowerCase() === "s" && focusFile) {
+        e.preventDefault(); onStar(focusFile); return;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedFile, selectedIds, quickLook, activeFiles, section]);
+  }, [selectedFile, previewFile, selectedIds, quickLook, activeFiles, section]);
 
   // Drag & drop
   const onDragEnter = (e: React.DragEvent) => {
@@ -741,6 +749,20 @@ function DrivePage() {
               }}
               buildDragPayload={buildDragPayload}
               onDropIntoFolder={dropIntoFolder}
+            />
+          )}
+
+          {previewFile && (
+            <PreviewPane
+              file={previewFile}
+              currentUserId={user.id}
+              onClose={() => setPreviewFile(null)}
+              onShare={fileActions.onShare}
+              onDelete={onDeleteFile}
+              onToggleStar={onStar}
+              onDownload={onDownload}
+              onCopyLink={onCopyLink}
+              onOpenFullscreen={(f) => setQuickLook(f)}
             />
           )}
         </div>

@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { fileKind, getSignedUrl, formatBytes, type FileRow } from "@/lib/drive-api";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 import { Button } from "@/components/ui/button";
-import { Download, Share2, Star, ExternalLink, X, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Download, Share2, Star, ExternalLink, X, ChevronLeft, ChevronRight,
+  ZoomIn, ZoomOut, RotateCcw,
+} from "lucide-react";
 
 export function QuickLook({
   file,
@@ -25,10 +28,13 @@ export function QuickLook({
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const imgWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setUrl(null);
     setTextContent(null);
+    setZoom(1);
     if (!file) return;
     let cancelled = false;
     getSignedUrl(file.storage_path).then((u) => { if (!cancelled) setUrl(u); }).catch(() => {});
@@ -58,25 +64,39 @@ export function QuickLook({
   }, [file?.id, siblings]);
 
   useEffect(() => {
-    if (!file || !onNavigate) return;
+    if (!file) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "ArrowLeft" && prev) { e.preventDefault(); onNavigate!(prev); }
-      else if (e.key === "ArrowRight" && next) { e.preventDefault(); onNavigate!(next); }
+      if (onNavigate && e.key === "ArrowLeft" && prev) { e.preventDefault(); onNavigate(prev); return; }
+      if (onNavigate && e.key === "ArrowRight" && next) { e.preventDefault(); onNavigate(next); return; }
+      if (kind === "image") {
+        if (e.key === "+" || e.key === "=") { e.preventDefault(); setZoom((z) => Math.min(8, z * 1.25)); }
+        else if (e.key === "-" || e.key === "_") { e.preventDefault(); setZoom((z) => Math.max(0.25, z * 0.8)); }
+        else if (e.key === "0") { e.preventDefault(); setZoom(1); }
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [file?.id, prev, next, onNavigate]);
+  }, [file?.id, prev, next, onNavigate, kind]);
 
+
+  const isImage = kind === "image";
+  const canZoom = isImage;
+
+  const onWheelZoom = (e: React.WheelEvent) => {
+    if (!canZoom) return;
+    e.preventDefault();
+    setZoom((z) => Math.min(8, Math.max(0.25, z * (e.deltaY < 0 ? 1.1 : 0.9))));
+  };
 
   return (
     <Dialog open={!!file} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent
-        className="max-w-[min(1100px,92vw)] w-full p-0 gap-0 overflow-hidden bg-surface border-hairline"
-        style={{ maxHeight: "88vh" }}
+        className="!max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 overflow-hidden bg-background border-0 flex flex-col"
+        style={{ maxHeight: "100vh" }}
       >
         {file && (
           <>
-            <div className="flex items-center justify-between px-5 h-12 border-b border-hairline bg-surface-2 shrink-0">
+            <div className="flex items-center justify-between px-5 h-14 border-b border-hairline bg-surface shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <FileIcon name={file.name} mime={file.mime_type} className="size-5 shrink-0" />
                 <div className="min-w-0">
@@ -87,14 +107,31 @@ export function QuickLook({
                 </div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
+                {canZoom && (
+                  <>
+                    <Button size="sm" variant="ghost" onClick={() => setZoom((z) => Math.max(0.25, z * 0.8))} title="Zoom out (-)">
+                      <ZoomOut />
+                    </Button>
+                    <span className="text-[11px] tabular-nums text-muted-foreground w-12 text-center">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={() => setZoom((z) => Math.min(8, z * 1.25))} title="Zoom in (+)">
+                      <ZoomIn />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setZoom(1)} title="Reset zoom (0)">
+                      <RotateCcw />
+                    </Button>
+                    <div className="w-px h-6 bg-hairline mx-1" />
+                  </>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => onToggleStar(file)} title="Star">
-                  <Star className={file.starred ? "fill-current" : ""} />
+                  <Star className={file.starred ? "fill-current text-amber-500" : ""} />
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => onShare(file)} title="Share">
                   <Share2 />
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => onDownload(file)} title="Open / Download">
-                  <ExternalLink />
+                  <Download />
                 </Button>
                 <Button size="sm" variant="ghost" onClick={onClose} title="Close (Esc)">
                   <X />
@@ -102,27 +139,31 @@ export function QuickLook({
               </div>
             </div>
 
-            <div className="bg-background grid place-items-center overflow-hidden relative" style={{ height: "calc(88vh - 3rem)" }}>
+            <div
+              ref={imgWrapRef}
+              onWheel={onWheelZoom}
+              className="flex-1 bg-background grid place-items-center overflow-auto thin-scroll relative"
+            >
               {onNavigate && prev && (
                 <button
                   onClick={() => onNavigate(prev)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 z-10 size-10 grid place-items-center rounded-full bg-surface/80 backdrop-blur ring-1 ring-hairline text-foreground hover:bg-surface"
+                  className="fixed left-4 top-1/2 -translate-y-1/2 z-20 size-12 grid place-items-center rounded-full bg-surface/90 backdrop-blur ring-1 ring-hairline text-foreground hover:bg-surface shadow-lg"
                   title="Previous (←)"
                 >
-                  <ChevronLeft className="size-5" />
+                  <ChevronLeft className="size-6" />
                 </button>
               )}
               {onNavigate && next && (
                 <button
                   onClick={() => onNavigate(next)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 size-10 grid place-items-center rounded-full bg-surface/80 backdrop-blur ring-1 ring-hairline text-foreground hover:bg-surface"
+                  className="fixed right-4 top-1/2 -translate-y-1/2 z-20 size-12 grid place-items-center rounded-full bg-surface/90 backdrop-blur ring-1 ring-hairline text-foreground hover:bg-surface shadow-lg"
                   title="Next (→)"
                 >
-                  <ChevronRight className="size-5" />
+                  <ChevronRight className="size-6" />
                 </button>
               )}
               {onNavigate && siblings.length > 1 && (
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 px-2.5 py-1 rounded-full bg-surface/80 backdrop-blur ring-1 ring-hairline text-[11px] text-muted-foreground">
+                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-surface/90 backdrop-blur ring-1 ring-hairline text-xs text-muted-foreground shadow-lg">
                   {siblings.findIndex((s) => s.id === file.id) + 1} / {siblings.length}
                 </div>
               )}
@@ -132,11 +173,18 @@ export function QuickLook({
                   <p className="text-xs text-muted-foreground">Loading preview…</p>
                 </div>
               )}
-              {url && kind === "image" && (
-                <img src={url} alt={file.name} className="max-h-full max-w-full object-contain" />
+              {url && isImage && (
+                <img
+                  src={url}
+                  alt={file.name}
+                  onDoubleClick={() => setZoom((z) => (z === 1 ? 2 : 1))}
+                  className="select-none transition-transform duration-150 ease-out max-h-[calc(100vh-3.5rem)] max-w-full object-contain"
+                  style={{ transform: `scale(${zoom})`, cursor: zoom > 1 ? "grab" : "zoom-in" }}
+                  draggable={false}
+                />
               )}
               {url && kind === "video" && (
-                <video src={url} controls autoPlay className="max-h-full max-w-full" />
+                <video src={url} controls autoPlay className="max-h-[calc(100vh-3.5rem)] max-w-full" />
               )}
               {url && kind === "audio" && (
                 <div className="p-10 w-full max-w-md text-center">
@@ -181,3 +229,4 @@ export function QuickLook({
     </Dialog>
   );
 }
+
