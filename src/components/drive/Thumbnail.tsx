@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fileKind, getSignedUrl, type FileRow } from "@/lib/drive-api";
+import { fileKind, getSignedUrl, isExternalLink, type FileRow } from "@/lib/drive-api";
 import { FileIcon } from "./FileIcon";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
