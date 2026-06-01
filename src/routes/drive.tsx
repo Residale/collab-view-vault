@@ -66,9 +66,12 @@ function DrivePage() {
   const [path, setPath] = useState<(string | null)[]>([null]);
   // Multi-selection (file ids). Last-clicked is used as anchor for shift-range.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Folders can also be selected (via checkbox or context menu in the bottom bar).
+  const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   // Files visible in the active container, used for shift-range and lasso.
   const [activeFiles, setActiveFiles] = useState<FileRow[]>([]);
+  const [activeFolders, setActiveFolders] = useState<FolderRow[]>([]);
   // Quick Look modal (Space / double-click)
   const [quickLook, setQuickLook] = useState<FileRow | null>(null);
 
