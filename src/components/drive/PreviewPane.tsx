@@ -1,20 +1,25 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fileKind, getSignedUrl, isExternalLink, externalUrl, type FileRow, formatBytes } from "@/lib/drive-api";
 import { Button } from "@/components/ui/button";
-import { Download, Share2, Star, Trash2, X, Maximize2, Link2, MessageSquare, ExternalLink as ExternalIcon } from "lucide-react";
+import { Download, Share2, Star, Trash2, X, Maximize2, Link2, MessageSquare, ExternalLink as ExternalIcon, Search as SearchIcon } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { SheetPreview } from "./SheetPreview";
 import { FileTagsEditor } from "./Tags";
 import { CommentsSection } from "./CommentsSection";
+import { HighlightedText } from "./Highlight";
+import { getFileSnippets } from "@/lib/drive-search.functions";
 
 export function PreviewPane({
   file,
   currentUserId,
+  searchQuery,
   onClose,
   onShare, onDelete, onToggleStar, onDownload, onCopyLink, onOpenFullscreen,
 }: {
   file: FileRow | null;
   currentUserId: string;
+  searchQuery?: string;
   onClose?: () => void;
   onShare: (f: FileRow) => void;
   onDelete: (f: FileRow) => void;
@@ -93,7 +98,7 @@ export function PreviewPane({
           {url && isSheet && <div className="size-full pointer-events-none overflow-hidden"><SheetPreview url={url} /></div>}
           {url && isText && textContent !== null && (
             <pre className="size-full overflow-hidden p-3 text-[10px] font-mono text-left whitespace-pre-wrap pointer-events-none">
-              {textContent.slice(0, 1200)}
+              <HighlightedText text={textContent.slice(0, 1200)} query={searchQuery} />
             </pre>
           )}
           {(!url || ["other", "archive", "doc"].includes(kind)) && !isText && (
@@ -111,11 +116,15 @@ export function PreviewPane({
 
         {/* Title */}
         <div className="min-w-0">
-          <h1 className="text-base font-semibold tracking-tight truncate">{file.name}</h1>
+          <h1 className="text-base font-semibold tracking-tight truncate">
+            <HighlightedText text={file.name} query={searchQuery} />
+          </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {formatBytes(file.size)} · Updated {new Date(file.updated_at).toLocaleDateString()}
           </p>
         </div>
+
+        {searchQuery && <ContentMatches fileId={file.id} query={searchQuery} />}
 
         {/* Primary action buttons — large, prominent */}
         <div className="grid grid-cols-2 gap-2">
@@ -209,6 +218,30 @@ function Meta({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-muted-foreground text-xs mb-0.5">{label}</dt>
       <dd className="font-medium truncate">{value}</dd>
+    </div>
+  );
+}
+
+function ContentMatches({ fileId, query }: { fileId: string; query: string }) {
+  const { data } = useQuery({
+    queryKey: ["file-snippets", fileId, query],
+    queryFn: () => getFileSnippets({ data: { fileId, query, max: 5 } }),
+    staleTime: 60_000,
+  });
+  const snippets = data?.snippets ?? [];
+  if (snippets.length === 0) return null;
+  return (
+    <div className="rounded-lg ring-1 ring-hairline bg-surface p-3 space-y-2">
+      <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+        <SearchIcon className="size-3" /> Matches for "{query}"
+      </div>
+      <ul className="space-y-2">
+        {snippets.map((s, i) => (
+          <li key={i} className="text-xs leading-relaxed text-foreground/80">
+            <HighlightedText text={s} query={query} />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

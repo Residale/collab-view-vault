@@ -730,6 +730,7 @@ function DrivePage() {
               search={search}
               selectedIds={selectedIds}
               selectedFolderIds={selectedFolderIds}
+              previewFileId={previewFile?.id ?? null}
               onFileClick={handleFileClick}
               onFileOpen={(f) => setQuickLook(f)}
               onBackgroundClick={clearSelection}
@@ -779,6 +780,7 @@ function DrivePage() {
               mode={view}
               selectedIds={selectedIds}
               selectedFolderIds={selectedFolderIds}
+              previewFileId={previewFile?.id ?? null}
               onFileClick={handleFileClick}
               onFileOpen={(f) => setQuickLook(f)}
               onOpenFolder={(f) => setPath([...path, f.id])}
@@ -804,6 +806,7 @@ function DrivePage() {
             <PreviewPane
               file={previewFile}
               currentUserId={user.id}
+              searchQuery={activeQuery || undefined}
               onClose={() => setPreviewFile(null)}
               onShare={fileActions.onShare}
               onDelete={onDeleteFile}
@@ -830,6 +833,7 @@ function DrivePage() {
       <QuickLook
         file={quickLook}
         siblings={activeFiles}
+        searchQuery={activeQuery || undefined}
         onNavigate={(f) => setQuickLook(f)}
         onClose={() => setQuickLook(null)}
         onDownload={onDownload}
@@ -1235,6 +1239,7 @@ type SharedViewProps = {
   search: string;
   selectedIds: Set<string>;
   selectedFolderIds: Set<string>;
+  previewFileId?: string | null;
   onFileClick: (f: FileRow, e: React.MouseEvent) => void;
   onFileOpen: (f: FileRow) => void;
   onBackgroundClick: () => void;
@@ -1338,7 +1343,7 @@ function Column(props: SharedViewProps & {
 }) {
   const {
     userId, section, parentId, depth, isLast, path, setPath, search,
-    selectedIds, selectedFolderIds,
+    selectedIds, selectedFolderIds, previewFileId,
     onFileClick, onFileOpen, onBackgroundClick, onActiveFiles, onActiveFolders,
     folderActions, fileActions,
     onToggleFolderSelected, onToggleFileSelected,
@@ -1485,6 +1490,7 @@ function Column(props: SharedViewProps & {
           <div className="space-y-0.5">
             {files.map((f) => {
               const isSelected = selectedIds.has(f.id);
+              const isPreview = previewFileId === f.id;
               return (
                 <FileContextMenu key={f.id} file={f} actions={fileActions}>
                   <div
@@ -1501,7 +1507,9 @@ function Column(props: SharedViewProps & {
                       "w-full px-2 py-1.5 rounded-md flex items-center gap-2.5 text-left transition-colors group cursor-default",
                       isSelected
                         ? "bg-primary/15 ring-1 ring-primary/40"
-                        : "hover:bg-surface-2/60",
+                        : isPreview
+                          ? "ring-2 ring-primary/70 bg-primary/5"
+                          : "hover:bg-surface-2/60",
                     )}
                     title={f.name}
                   >
@@ -1607,7 +1615,7 @@ function FlatView(props: SharedViewProps & {
 }) {
   const {
     userId, section, path, search, mode,
-    selectedIds, selectedFolderIds,
+    selectedIds, selectedFolderIds, previewFileId,
     onFileClick, onFileOpen, onOpenFolder, onBackgroundClick,
     onActiveFiles, onActiveFolders,
     folderActions, fileActions,
@@ -1702,6 +1710,7 @@ function FlatView(props: SharedViewProps & {
           })}
           {files.map((f) => {
             const isSelected = selectedIds.has(f.id);
+            const isPreview = previewFileId === f.id;
             return (
               <FileContextMenu key={f.id} file={f} actions={fileActions}>
                 <div
@@ -1713,7 +1722,7 @@ function FlatView(props: SharedViewProps & {
                   onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                   className={cn(
                     "w-full grid grid-cols-[1fr_120px_140px_60px] gap-4 px-6 h-11 items-center text-left text-sm cursor-default group",
-                    isSelected ? "bg-primary/10 ring-1 ring-primary/40" : "hover:bg-surface-2/60",
+                    isSelected ? "bg-primary/10 ring-1 ring-primary/40" : isPreview ? "ring-2 ring-primary/70 bg-primary/5" : "hover:bg-surface-2/60",
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -1776,6 +1785,7 @@ function FlatView(props: SharedViewProps & {
               <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
                 {files.map((f) => {
                   const isSelected = selectedIds.has(f.id);
+                  const isPreview = previewFileId === f.id;
                   return (
                     <FileContextMenu key={f.id} file={f} actions={fileActions}>
                       <div
@@ -1787,7 +1797,7 @@ function FlatView(props: SharedViewProps & {
                         onDoubleClick={(e) => { e.stopPropagation(); onFileOpen(f); }}
                         className={cn(
                           "rounded-lg ring-1 transition-all overflow-hidden flex flex-col text-left bg-surface group cursor-default relative",
-                          isSelected ? "ring-2 ring-primary shadow-pane" : "ring-hairline hover:ring-foreground/20 hover:shadow-architect",
+                          isSelected ? "ring-2 ring-primary shadow-pane" : isPreview ? "ring-2 ring-primary/70 shadow-pane" : "ring-hairline hover:ring-foreground/20 hover:shadow-architect",
                         )}
                       >
                         <div className="aspect-square w-full bg-surface-2 relative overflow-hidden">

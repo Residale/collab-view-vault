@@ -76,6 +76,15 @@ export function SearchBar({
     return () => clearTimeout(t);
   }, [q]);
 
+  // Auto-clear active search results when the input is emptied — no Enter needed.
+  const lastSubmittedRef = useRef<string>("");
+  useEffect(() => {
+    if (q.trim() === "" && lastSubmittedRef.current !== "") {
+      lastSubmittedRef.current = "";
+      onActiveQueryChange("", filters);
+    }
+  }, [q, filters, onActiveQueryChange]);
+
   // Keyboard: ⌘K / Ctrl+K to focus
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -139,6 +148,7 @@ export function SearchBar({
 
   function submit(query: string) {
     if (!query.trim()) return;
+    lastSubmittedRef.current = query.trim();
     recordSearch({ data: { query: query.trim() } }).catch(() => {});
     onActiveQueryChange(query.trim(), filters);
     setOpen(false);
