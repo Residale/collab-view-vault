@@ -10,8 +10,13 @@ import {
 import {
   listSharesFor, removeShare, searchUsersByEmail, shareTarget,
 } from "@/lib/drive-api";
+import {
+  createPublicLink, deletePublicLink, getPublicLink, publicLinkUrl,
+  type PublicLink,
+} from "@/lib/public-links";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { X } from "lucide-react";
+import { X, Link2, Copy, Globe } from "lucide-react";
 
 export type ShareTargetInput = {
   type: "file" | "folder";
@@ -34,7 +39,16 @@ export function ShareDialog({
     setShares(await listSharesFor(target.type, target.id));
   };
 
+  const [link, setLink] = useState<PublicLink | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [expiry, setExpiry] = useState<string>("never");
+
   useEffect(() => { refresh(); }, [target?.id]);
+
+  useEffect(() => {
+    if (!target || target.type !== "file") { setLink(null); return; }
+    getPublicLink(target.id).then(setLink).catch(() => setLink(null));
+  }, [target?.id, target?.type]);
 
   useEffect(() => {
     if (!email || email.length < 2) { setResults([]); return; }
@@ -130,6 +144,88 @@ export function ShareDialog({
             </ul>
           )}
         </div>
+
+        {target?.type === "file" && (
+          <div className="mt-2 pt-3 border-t border-hairline">
+            <h4 className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Globe className="size-3" /> Public link
+            </h4>
+            {link ? (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input readOnly value={publicLinkUrl(link.token)} className="text-xs font-mono" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(publicLinkUrl(link.token));
+                      toast.success("Link copied");
+                    }}
+                  >
+                    <Copy className="size-3.5" />
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>
+                    {link.expires_at
+                      ? `Expires ${new Date(link.expires_at).toLocaleDateString()}`
+                      : "No expiration"}
+                    {link.allow_download ? " · download allowed" : " · view only"}
+                  </span>
+                  <button
+                    onClick={async () => {
+                      setLinkBusy(true);
+                      try { await deletePublicLink(link.id); setLink(null); toast.success("Link revoked"); }
+                      catch (e: any) { toast.error(e.message); }
+                      finally { setLinkBusy(false); }
+                    }}
+                    disabled={linkBusy}
+                    className="text-destructive hover:underline"
+                  >
+                    Revoke
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2 items-center">
+                <Select value={expiry} onValueChange={setExpiry}>
+                  <SelectTrigger className="w-36 h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="never">No expiration</SelectItem>
+                    <SelectItem value="1">1 day</SelectItem>
+                    <SelectItem value="7">7 days</SelectItem>
+                    <SelectItem value="30">30 days</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  disabled={linkBusy}
+                  onClick={async () => {
+                    if (!target) return;
+                    setLinkBusy(true);
+                    try {
+                      const { data: { user } } = await supabase.auth.getUser();
+                      if (!user) return;
+                      const days = expiry === "never" ? null : Number(expiry);
+                      const l = await createPublicLink({
+                        fileId: target.id,
+                        userId: user.id,
+                        expiresInDays: days,
+                      });
+                      setLink(l);
+                      navigator.clipboard.writeText(publicLinkUrl(l.token));
+                      toast.success("Public link created and copied");
+                    } catch (e: any) {
+                      toast.error(e.message);
+                    } finally { setLinkBusy(false); }
+                  }}
+                >
+                  <Link2 className="size-3.5" /> Create public link
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex justify-end pt-2">
           <Button variant="outline" onClick={onClose}>Done</Button>
