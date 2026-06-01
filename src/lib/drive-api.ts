@@ -183,6 +183,64 @@ export async function uploadFile(userId: string, folderId: string | null, file: 
   return data as FileRow;
 }
 
+// ---- External link "files" (Google Sheets / Docs / Slides / Drive, etc.) ----
+//
+// We reuse the `files` table for shortcuts. Instead of a storage object,
+// `storage_path` holds `external:<url>` and `mime_type` carries a Google
+// Workspace style mime so existing icon logic picks the right colour/icon.
+// `size` is 0 — no bytes are stored.
+
+export const EXTERNAL_PREFIX = "external:";
+
+export function isExternalLink(file: { storage_path: string }) {
+  return file.storage_path.startsWith(EXTERNAL_PREFIX);
+}
+
+export function externalUrl(file: { storage_path: string }) {
+  return file.storage_path.slice(EXTERNAL_PREFIX.length);
+}
+
+export type ExternalLinkKind = { mime: string; defaultName: string };
+
+/** Inspect a URL and figure out which Workspace document it is. */
+export function detectExternalLink(rawUrl: string): ExternalLinkKind | null {
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { return null; }
+  const host = url.hostname.toLowerCase();
+  const path = url.pathname;
+  if (host === "docs.google.com") {
+    if (path.startsWith("/spreadsheets/")) return { mime: "application/vnd.google-apps.spreadsheet",  defaultName: "Google Sheet" };
+    if (path.startsWith("/document/"))     return { mime: "application/vnd.google-apps.document",     defaultName: "Google Doc" };
+    if (path.startsWith("/presentation/")) return { mime: "application/vnd.google-apps.presentation", defaultName: "Google Slides" };
+    if (path.startsWith("/forms/"))        return { mime: "application/vnd.google-apps.form",         defaultName: "Google Form" };
+  }
+  if (host === "drive.google.com") return { mime: "application/vnd.google-apps.drive-sdk", defaultName: "Google Drive file" };
+  if (host.endsWith("figma.com"))  return { mime: "application/vnd.figma.link",  defaultName: "Figma file" };
+  if (host.endsWith("notion.so") || host.endsWith("notion.site")) return { mime: "application/vnd.notion.link", defaultName: "Notion page" };
+  return { mime: "application/x-url", defaultName: url.hostname };
+}
+
+export async function createExternalLink(
+  userId: string,
+  folderId: string | null,
+  url: string,
+  displayName?: string,
+): Promise<FileRow> {
+  const info = detectExternalLink(url);
+  if (!info) throw new Error("Not a valid URL");
+  const name = await uniqueNameInFolder(userId, folderId, displayName?.trim() || info.defaultName, "file");
+  const { data, error } = await supabase.from("files").insert({
+    owner_id: userId,
+    folder_id: folderId,
+    name,
+    storage_path: `${EXTERNAL_PREFIX}${url}`,
+    mime_type: info.mime,
+    size: 0,
+  }).select().single();
+  if (error) throw error;
+  return data as FileRow;
+}
+
 export type ImageTransform = {
   width: number;
   height: number;
