@@ -229,7 +229,7 @@ export function QuickLook({
                 )}
                 {url && isText && textContent !== null && (
                   <pre className="size-full overflow-auto thin-scroll p-6 text-xs font-mono text-left whitespace-pre-wrap bg-surface">
-                    {textContent}
+                    <HighlightedText text={textContent} query={searchQuery} />
                   </pre>
                 )}
                 {url && kind === "doc" && !isText && (
